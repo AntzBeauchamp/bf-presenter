@@ -1,0 +1,55 @@
+@'
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+
+# Builds / caches
+dist/
+build/
+out/
+.release/
+.releases/
+*.asar
+*.map
+.cache/
+.parcel-cache/
+.turbo/
+coverage/
+
+# Electron builder outputs
+*.exe
+*.dmg
+*.AppImage
+*.snap
+
+# OS/IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# App runtime
+userdata/
+tmp/
+logs/
+*.log
+'@ | Set-Content -NoNewline .gitignore
+node_modules
+node_modules/
+dist/
+build/
+out/
+*.exe
+*.dmg
+*.AppImage
+*.snap
+*.asar
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+userdata/
+*.log

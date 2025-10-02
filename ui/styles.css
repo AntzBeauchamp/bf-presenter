@@ -1,0 +1,16 @@
+
+body { margin: 0; font-family: system-ui, Arial, sans-serif; color: #eee; background:#111; }
+header { display:flex; justify-content:space-between; align-items:center; padding:10px 16px; background:#181818; border-bottom:1px solid #222; }
+.controls button { margin-right:6px; }
+main { display:flex; height: calc(100vh - 64px); }
+.playlist { width: 45%; padding: 12px; overflow:auto; border-right:1px solid #222; }
+.preview { flex:1; padding: 12px; display:flex; align-items:center; justify-content:center; }
+#previewArea img, #previewArea video { max-width:100%; max-height:100%; background:#000; }
+ol { margin:0; padding-left:16px; }
+li { padding: 6px 0; cursor:pointer; }
+li:hover { text-decoration: underline; }
+
+.display #stage, .control #previewArea { width:100vw; height:100vh; background:#000; display:flex; align-items:center; justify-content:center; }
+.display img, .display video { max-width:100%; max-height:100%; }
+.hidden { display:none; }
+.black { position:fixed; inset:0; background:#000; z-index: 9999; }
