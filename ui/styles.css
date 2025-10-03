@@ -16,6 +16,10 @@ button {
   transition: background 120ms ease, border-color 120ms ease, transform 90ms ease;
 }
 
+#btnSetImage {
+  display: none;
+}
+
 button:hover {
   background: #262626;
   border-color: #3a86ff;
@@ -68,6 +72,13 @@ button:active {
   justify-content: space-between;
 }
 
+.preview-card header > div,
+.nextup-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .preview-stage,
 .nextup-stage {
   flex: 1;
@@ -90,10 +101,6 @@ button:active {
   padding: 16px;
 }
 
-.nextup-actions button {
-  margin-left: 8px;
-}
-
 /* Thumbnail grid */
 .thumb-grid {
   display: grid;
@@ -114,6 +121,10 @@ button:active {
 .thumb:hover {
   border-color: #3a86ff;
   transform: translateY(-1px);
+}
+
+.thumb.previewing {
+  border-color: #facc15;
 }
 
 .thumb.selected {

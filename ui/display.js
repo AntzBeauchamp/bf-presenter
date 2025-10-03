@@ -61,25 +61,45 @@ function showItem(item) {
     return;
   }
 
-  blackout?.classList.add('hidden');
-
+  let showBlackout = true;
   const url = fileURL(item.path);
 
   if (item.type === 'image') {
     img.onerror = (e) => notifyError('Unable to load image.', e);
     img.src = url;
     img.classList.remove('hidden');
+    showBlackout = false;
   } else if (item.type === 'audio') {
     audio.onerror = (e) => notifyError('Unable to load audio.', e);
     audio.src = url;
     audio.classList.remove('hidden');
+
+    if (item.displayImage) {
+      const displayURL = fileURL(item.displayImage);
+      img.onerror = () => {
+        console.warn('Failed to load display image for audio item. Falling back to black.');
+        img.classList.add('hidden');
+        blackout?.classList.remove('hidden');
+      };
+      img.src = displayURL;
+      img.classList.remove('hidden');
+      showBlackout = false;
+    }
   } else if (item.type === 'video') {
     video.onerror = (e) => notifyError('Unable to load video.', e);
     video.src = url;
     video.setAttribute('playsinline', '');
     video.classList.remove('hidden');
+    showBlackout = false;
   } else {
     notifyError('Unsupported media type.', new Error(item.type));
+    return;
+  }
+
+  if (showBlackout) {
+    blackout?.classList.remove('hidden');
+  } else {
+    blackout?.classList.add('hidden');
   }
 }
 
