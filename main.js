@@ -122,6 +122,7 @@ ipcMain.handle('pick-media', async (_evt, opts = {}) => {
 });
 
 ipcMain.on('display:show-item', (_evt, item) => {
+  console.log('MAIN: forwarding to display', item);
   if (displayWin && !displayWin.isDestroyed()) {
     displayWin.webContents.send('display:show-item', item);
     logMain('INFO', 'Forwarded item to display', { type: item?.type || 'unknown' });
