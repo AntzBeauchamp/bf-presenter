@@ -8,14 +8,7 @@ contextBridge.exposeInMainWorld('presenterAPI', {
   pause: () => ipcRenderer.send('display:pause'),
   black: () => ipcRenderer.send('display:black'),
   unblack: () => ipcRenderer.send('display:unblack'),
-  toFileURL: (absPath) => {
-    try {
-      return pathToFileURL(absPath).href;
-    } catch (err) {
-      console.error('Failed to convert path to file URL', err);
-      return absPath;
-    }
-  },
+  toFileURL: (absPath) => pathToFileURL(absPath).href,
   send: (channel, payload) => ipcRenderer.send(channel, payload),
   onProgramEvent: (channel, cb) => ipcRenderer.on(channel, (_e, data) => cb(data)),
   log: {
@@ -28,7 +21,8 @@ contextBridge.exposeInMainWorld('presenterAPI', {
         data
       });
     },
-    onAppend: (cb) => ipcRenderer.on('log:append', (_e, payload) => cb(payload)),
-    download: () => ipcRenderer.invoke?.('log:download')
+    onAppend: (cb) => {
+      ipcRenderer.on('log:append', (_e, payload) => cb(payload));
+    }
   }
 });

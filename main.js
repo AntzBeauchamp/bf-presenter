@@ -10,7 +10,7 @@ app.setPath('userData', path.join(__dirname, 'userdata'));
 let controlWin, displayWin;
 
 function sendLogToControl(payload) {
-  if (controlWin && !controlWin.isDestroyed()) {
+  if (controlWin && !controlWin.isDestroyed() && controlWin.webContents) {
     controlWin.webContents.send('log:append', payload);
   }
 }
