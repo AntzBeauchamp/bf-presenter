@@ -52,54 +52,44 @@ function notifyError(message, err) {
 }
 
 function showItem(item) {
+  console.log('Display got item:', item);
   currentItem = item || null;
   clearError();
   hideAll();
 
   if (!item) {
-    blackout?.classList.remove('hidden');
+    blackout.classList.remove('hidden');
     return;
   }
-
-  let showBlackout = true;
-  const url = fileURL(item.path);
 
   if (item.type === 'image') {
     img.onerror = (e) => notifyError('Unable to load image.', e);
-    img.src = url;
+    img.src = fileURL(item.path);
     img.classList.remove('hidden');
-    showBlackout = false;
+    blackout.classList.add('hidden');
+
   } else if (item.type === 'audio') {
     audio.onerror = (e) => notifyError('Unable to load audio.', e);
-    audio.src = url;
+    audio.src = fileURL(item.path);
     audio.classList.remove('hidden');
 
     if (item.displayImage) {
-      const displayURL = fileURL(item.displayImage);
-      img.onerror = () => {
-        console.warn('Failed to load display image for audio item. Falling back to black.');
-        img.classList.add('hidden');
-        blackout?.classList.remove('hidden');
-      };
-      img.src = displayURL;
+      img.onerror = (e) => notifyError('Unable to load display image.', e);
+      img.src = fileURL(item.displayImage);
       img.classList.remove('hidden');
-      showBlackout = false;
+      blackout.classList.add('hidden');
+    } else {
+      blackout.classList.remove('hidden');
     }
+
   } else if (item.type === 'video') {
     video.onerror = (e) => notifyError('Unable to load video.', e);
-    video.src = url;
+    video.src = fileURL(item.path);
     video.setAttribute('playsinline', '');
     video.classList.remove('hidden');
-    showBlackout = false;
+    blackout.classList.add('hidden');
   } else {
     notifyError('Unsupported media type.', new Error(item.type));
-    return;
-  }
-
-  if (showBlackout) {
-    blackout?.classList.remove('hidden');
-  } else {
-    blackout?.classList.add('hidden');
   }
 }
 
