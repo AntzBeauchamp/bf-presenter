@@ -113,6 +113,7 @@ function notifyError(message, err) {
 }
 
 function showItem(item) {
+  console.log('DISPLAY: showItem called with', item);
   console.log('Display got item:', item);
   currentItem = item || null;
   clearError();
@@ -156,6 +157,7 @@ function showItem(item) {
 
 // --- LISTEN FOR PUSHED ITEMS FROM MAIN ---
 window.presenterAPI.onProgramEvent('display:show-item', (item) => {
+  console.log('DISPLAY: received item', item);
   console.log('Display received item:', item);
   showItem(item);
 });

@@ -307,6 +307,7 @@ function previewItem(id) {
 function pushToProgram() {
   if (!previewId) return;
   const item = media.find((entry) => entry.id === previewId);
+  console.log('CONTROL: pushing to program', item);
   if (!item) return;
 
   window.presenterAPI?.showOnProgram?.({
@@ -314,6 +315,7 @@ function pushToProgram() {
     type: item.type,
     displayImage: item.displayImage ?? null
   });
+  window.presenterAPI?.play?.();
 }
 
 btnPush?.addEventListener('click', () => {
