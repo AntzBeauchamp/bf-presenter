@@ -2,7 +2,7 @@ body {
   margin: 0;
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: #eee;
-  background: #080808;
+  background: #7ea172;
 }
 
 button {
@@ -40,8 +40,8 @@ button:active {
 }
 
 .left-panel {
-  background: #0f0f0f;
-  border: 1px solid #1e1e1e;
+  background: #000000;
+  border: 1px solid #242424;
   border-radius: 14px;
   padding: 12px;
   overflow: auto;
@@ -54,8 +54,8 @@ button:active {
 }
 
 .card {
-  background: #0f0f0f;
-  border: 1px solid #1e1e1e;
+  background: #131313;
+  border: 1px solid #0f0f0f;
   border-radius: 14px;
   overflow: hidden;
   display: flex;
@@ -188,8 +188,8 @@ button:active {
 /* Toolbar */
 .toolbar {
   height: 64px;
-  border-top: 1px solid #1e1e1e;
-  background: #101010;
+  border-top: 1px solid #4e6766 ;
+  background: #837c73 ;
   display: grid;
   grid-auto-flow: column;
   align-items: center;
