@@ -40,6 +40,8 @@ function appendLog(entry) {
   if (!entry || !loggerBody) return;
   const { ts, level, source, msg, data } = entry;
 
+  console.log('appendLog got', level, source, msg, data);
+
   const row = document.createElement('div');
   row.className = `log-row log-level-${level}`;
 
@@ -86,6 +88,10 @@ function appendLog(entry) {
 
 if (logAPI?.onAppend) {
   logAPI.onAppend((payload) => appendLog(payload));
+}
+
+if (logAPI?.append) {
+  logAPI.append('INFO', 'CONTROL', 'Logger initialized test');
 }
 
 function logControl(level, msg, data = null) {
