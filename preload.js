@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import { pathToFileURL } from 'url';
 
 contextBridge.exposeInMainWorld('presenterAPI', {
   pickMedia: () => ipcRenderer.invoke('pick-media'),
@@ -7,5 +8,14 @@ contextBridge.exposeInMainWorld('presenterAPI', {
   unblack: () => ipcRenderer.send('display:unblack'),
   pause: () => ipcRenderer.send('display:pause'),
   play: () => ipcRenderer.send('display:play'),
-  onProgramEvent: (channel, cb) => ipcRenderer.on(channel, (_e, data) => cb(data))
+  send: (channel, payload) => ipcRenderer.send(channel, payload),
+  onProgramEvent: (channel, cb) => ipcRenderer.on(channel, (_e, data) => cb(data)),
+  toFileURL: (absPath) => {
+    try {
+      return pathToFileURL(absPath).href;
+    } catch (err) {
+      console.error('Failed to convert path to file URL', err);
+      return absPath;
+    }
+  }
 });
