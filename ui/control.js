@@ -1,4 +1,5 @@
 const btnAdd = document.getElementById('btnAdd');
+const btnPush = document.getElementById('btnPush');
 const btnPlay = document.getElementById('btnPlay');
 const btnPause = document.getElementById('btnPause');
 const btnPrev = document.getElementById('btnPrev');
@@ -7,7 +8,6 @@ const btnBlack = document.getElementById('btnBlack');
 const btnUnblack = document.getElementById('btnUnblack');
 const btnPlayNext = document.getElementById('btnPlayNext');
 const btnClearNext = document.getElementById('btnClearNext');
-const btnPush = document.getElementById('btnPush');
 const btnSetImage = document.getElementById('btnSetImage');
 
 const grid = document.getElementById('thumbGrid');
@@ -22,9 +22,15 @@ const btnLogClear = document.getElementById('btnLogClear');
 const btnLogDownload = document.getElementById('btnLogDownload');
 const btnLogToggle = document.getElementById('btnLogToggle');
 const chkAutoscroll = document.getElementById('chkAutoscroll');
-const logAPI = window.presenterAPI?.log;
 
+const logAPI = window.presenterAPI?.log ?? null;
+
+const NEXTUP_PLACEHOLDER = '<div class="nextup-placeholder">Click a thumbnail to stage it here.</div>';
 const LOG_BUFFER_MAX = 1000;
+
+let media = [];
+let previewId = null;
+let nextUpId = null;
 const logBuffer = [];
 
 function pad2(n) {
@@ -33,42 +39,39 @@ function pad2(n) {
 
 function tsString(ts) {
   const d = new Date(ts);
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}.${d.getMilliseconds().toString().padStart(3, '0')}`;
+  const ms = d.getMilliseconds().toString().padStart(3, '0');
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}.${ms}`;
 }
 
 function appendLog(entry) {
   if (!entry || !loggerBody) return;
+
   const { ts, level, source, msg, data } = entry;
-
-  console.log('appendLog received:', level, source, msg, data);
-
   const row = document.createElement('div');
   row.className = `log-row log-level-${level}`;
 
   const timeEl = document.createElement('div');
   timeEl.className = 'log-time';
   timeEl.textContent = tsString(ts);
+  row.appendChild(timeEl);
 
   const levelEl = document.createElement('div');
   levelEl.textContent = level;
+  row.appendChild(levelEl);
 
   const sourceEl = document.createElement('div');
   sourceEl.className = 'log-source';
   sourceEl.textContent = source;
+  row.appendChild(sourceEl);
 
   const messageEl = document.createElement('div');
   messageEl.className = 'log-msg';
   const baseMsg = typeof msg === 'string' ? msg : (() => { try { return JSON.stringify(msg); } catch { return String(msg); } })();
-  const extra = data !== undefined && data !== null ? (() => { try { return ` ${JSON.stringify(data)}`; } catch { return ` ${String(data)}`; } })() : '';
+  const extra = data != null ? (() => { try { return ` ${JSON.stringify(data)}`; } catch { return ` ${String(data)}`; } })() : '';
   messageEl.textContent = `${baseMsg}${extra}`;
-
-  row.appendChild(timeEl);
-  row.appendChild(levelEl);
-  row.appendChild(sourceEl);
   row.appendChild(messageEl);
 
   loggerBody.appendChild(row);
-
   logBuffer.push(entry);
   if (logBuffer.length > LOG_BUFFER_MAX) {
     logBuffer.shift();
@@ -77,28 +80,17 @@ function appendLog(entry) {
     }
   }
 
-  if (loggerCountEl) {
-    loggerCountEl.textContent = `${logBuffer.length} entries`;
-  }
-
   if (!chkAutoscroll || chkAutoscroll.checked) {
     loggerBody.scrollTop = loggerBody.scrollHeight;
   }
+
+  if (loggerCountEl) {
+    loggerCountEl.textContent = `${logBuffer.length} entries`;
+  }
 }
 
-// --- LOGGER SUBSCRIPTION ---
-window.presenterAPI.log.onAppend((payload) => {
-  appendLog(payload);
-});
-
-if (logAPI?.append) {
-  logAPI.append('INFO', 'CONTROL', 'Logger initialized test');
-}
-
-function logControl(level, msg, data = null) {
-  if (!logAPI?.append) return;
-  const safeMsg = typeof msg === 'undefined' ? '' : msg;
-  logAPI.append(level, 'CONTROL', safeMsg, data);
+if (logAPI && typeof logAPI.onAppend === 'function') {
+  logAPI.onAppend((payload) => appendLog(payload));
 }
 
 btnLogClear?.addEventListener('click', () => {
@@ -110,20 +102,12 @@ btnLogClear?.addEventListener('click', () => {
   }
 });
 
-btnLogToggle?.addEventListener('click', () => {
-  if (!loggerCard) return;
-  const collapsed = loggerCard.classList.toggle('collapsed');
-  if (btnLogToggle) {
-    btnLogToggle.textContent = collapsed ? 'Expand' : 'Collapse';
-  }
-});
-
 btnLogDownload?.addEventListener('click', () => {
   if (!logBuffer.length) return;
   const lines = logBuffer.map((entry) => {
     const { ts, source, level, msg, data } = entry;
     const baseMsg = typeof msg === 'string' ? msg : (() => { try { return JSON.stringify(msg); } catch { return String(msg); } })();
-    const extra = data !== undefined && data !== null ? (() => { try { return ` ${JSON.stringify(data)}`; } catch { return ` ${String(data)}`; } })() : '';
+    const extra = data != null ? (() => { try { return ` ${JSON.stringify(data)}`; } catch { return ` ${String(data)}`; } })() : '';
     return `${new Date(ts).toISOString()} [${source}/${level}] ${baseMsg}${extra}`;
   });
   const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
@@ -137,102 +121,65 @@ btnLogDownload?.addEventListener('click', () => {
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 });
 
-if (chkAutoscroll) {
-  chkAutoscroll.addEventListener('change', () => {
-    if (chkAutoscroll.checked && loggerBody) {
-      loggerBody.scrollTop = loggerBody.scrollHeight;
-    }
-  });
-}
-
-(function tapConsole() {
-  if (!logAPI?.append) return;
-  const original = {
-    log: console.log,
-    warn: console.warn,
-    error: console.error
-  };
-
-  function toPayload(args) {
-    if (!args.length) return ['', null];
-    if (args.length === 1) return [args[0], null];
-    const [first, ...rest] = args;
-    return [first, rest.length === 1 ? rest[0] : rest];
+chkAutoscroll?.addEventListener('change', () => {
+  if (chkAutoscroll.checked && loggerBody) {
+    loggerBody.scrollTop = loggerBody.scrollHeight;
   }
+});
 
-  console.log = (...args) => {
-    original.log(...args);
-    const [msg, data] = toPayload(args);
-    logControl('INFO', msg, data);
-  };
+btnLogToggle?.addEventListener('click', () => {
+  if (!loggerCard) return;
+  const collapsed = loggerCard.classList.toggle('collapsed');
+  btnLogToggle.textContent = collapsed ? 'Expand' : 'Collapse';
+});
 
-  console.warn = (...args) => {
-    original.warn(...args);
-    const [msg, data] = toPayload(args);
-    logControl('WARN', msg, data);
-  };
-
-  console.error = (...args) => {
-    original.error(...args);
-    const [msg, data] = toPayload(args);
-    logControl('ERROR', msg, data);
-  };
-
-  window.addEventListener('error', (event) => {
-    logControl('ERROR', 'window.onerror', {
-      message: event.message,
-      filename: event.filename,
-      lineno: event.lineno,
-      colno: event.colno
-    });
-  });
-
-  window.addEventListener('unhandledrejection', (event) => {
-    logControl('ERROR', 'unhandledrejection', {
-      reason: (() => {
-        try { return JSON.stringify(event.reason); } catch { return String(event.reason); }
-      })()
-    });
-  });
-})();
-
-let media = [];
-let index = -1;
-let previewId = null;
-let nextUpId = null;
-
-const NEXTUP_PLACEHOLDER_HTML = '<div class="nextup-placeholder">Click a thumbnail to stage it here.</div>';
-
-function classify(filePath) {
-  const ext = filePath.split('.').pop().toLowerCase();
+function classify(path) {
+  const ext = path.split('.').pop().toLowerCase();
   if (['mp4', 'mov', 'webm'].includes(ext)) return 'video';
   if (['mp3', 'wav', 'm4a'].includes(ext)) return 'audio';
   if (['jpg', 'jpeg', 'png'].includes(ext)) return 'image';
   return 'unknown';
 }
 
-function toFileURL(p) {
+function toFileURL(path) {
   try {
-    return window.presenterAPI?.toFileURL(p) ?? `file://${p}`;
+    return window.presenterAPI?.toFileURL(path) ?? `file://${path}`;
   } catch (err) {
     console.warn('Failed to convert to file URL', err);
-    return `file://${p}`;
+    return `file://${path}`;
   }
 }
 
-function iconDataURI(kind) {
-  const svgs = {
-    video: '<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" fill="#000"/><polygon points="18,14 36,24 18,34" fill="#9bd"/></svg>',
-    audio: '<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" fill="#000"/><path d="M22 14v20a6 6 0 1 1-4-5.66V14h4zM30 19v10a4 4 0 1 0 4 0V19h-4z" fill="#e9b"/></svg>',
-    image: '<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" fill="#000"/><circle cx="14" cy="16" r="4" fill="#9f9"/><path d="M6 36l10-12 8 9 6-7 12 10H6z" fill="#9f9"/></svg>'
-  };
-  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svgs[kind] || svgs.image);
+function createId() {
+  return `media-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+}
+
+function addPathsToMedia(paths = []) {
+  const items = paths
+    .filter(Boolean)
+    .map((path) => ({
+      id: createId(),
+      path,
+      type: classify(path),
+      name: path.split(/[\\/]/).pop() || path,
+      displayImage: null
+    }))
+    .filter((item) => item.type !== 'unknown');
+
+  if (!items.length) return;
+
+  media = media.concat(items);
+  renderMediaGrid();
+
+  if (!nextUpId && media.length) {
+    stageNext(media[0].id);
+  }
 }
 
 function buildThumb(item, { interactive = true } = {}) {
-  const div = document.createElement('div');
-  div.className = 'thumb';
-  div.dataset.id = item.id;
+  const container = document.createElement('div');
+  container.className = 'thumb';
+  container.dataset.id = item.id;
 
   const img = document.createElement('img');
   if (item.type === 'image') {
@@ -240,75 +187,84 @@ function buildThumb(item, { interactive = true } = {}) {
   } else if (item.type === 'audio' && item.displayImage) {
     img.src = toFileURL(item.displayImage);
   } else if (item.type === 'video') {
-    img.src = iconDataURI('video');
-  } else if (item.type === 'audio') {
-    img.src = iconDataURI('audio');
+    img.src = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" rx="6" fill="#191919"/><polygon points="20,16 34,24 20,32" fill="#6ec1ff"/></svg>');
   } else {
-    img.src = iconDataURI('image');
+    img.src = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" rx="6" fill="#191919"/><circle cx="16" cy="16" r="6" fill="#9be7ff"/><path d="M8 38l10-12 8 9 6-8 8 11H8z" fill="#6ec1ff"/></svg>');
   }
-  div.appendChild(img);
+  container.appendChild(img);
 
   const meta = document.createElement('div');
   meta.className = 'meta';
-
   const name = document.createElement('div');
   name.className = 'name';
   name.textContent = item.name;
-
   const badge = document.createElement('span');
   badge.className = `badge ${item.type}`;
   badge.textContent = item.type.toUpperCase();
-
   meta.appendChild(name);
   meta.appendChild(badge);
-  div.appendChild(meta);
+  container.appendChild(meta);
 
-  if (interactive) {
-    div.addEventListener('click', (event) => {
-      event.preventDefault();
-      stageNext(item.id);
-    });
-    div.addEventListener('dblclick', (event) => {
-      event.preventDefault();
-      const i = media.findIndex((m) => m.id === item.id);
-      if (i >= 0) {
-        cue(i);
-        pushToProgram();
-      }
-    });
-  } else {
-    div.classList.add('readonly');
+  if (item.id === previewId) {
+    container.classList.add('previewing');
+  }
+  if (item.id === nextUpId) {
+    container.classList.add('staged');
   }
 
-  return div;
+  if (interactive) {
+    container.addEventListener('click', () => {
+      stageNext(item.id);
+    });
+
+    container.addEventListener('dblclick', () => {
+      stageNext(item.id);
+      previewItem(item.id);
+      pushToProgram();
+    });
+  } else {
+    container.classList.add('readonly');
+  }
+
+  return container;
 }
 
-function renderGrid() {
+function renderMediaGrid() {
   if (!grid) return;
   grid.innerHTML = '';
 
   if (!media.length) {
     const empty = document.createElement('div');
     empty.className = 'nextup-placeholder';
-    empty.textContent = 'Drop files here or use Add Media to build your playlist.';
     empty.style.gridColumn = '1 / -1';
+    empty.textContent = 'Drop files here or use Add Media to build your playlist.';
     grid.appendChild(empty);
     return;
   }
 
   media.forEach((item) => {
     const thumb = buildThumb(item);
-    if (item.id === nextUpId) {
-      thumb.classList.add('staged');
-    }
-    if (previewId === item.id) {
-      thumb.classList.add('previewing');
-    }
-    if (index >= 0 && media[index] && media[index].id === item.id) {
-      thumb.classList.add('selected');
-    }
     grid.appendChild(thumb);
   });
+}
+
+function renderNextUp(item) {
+  if (!nextUpArea) return;
+  nextUpArea.innerHTML = '';
+
+  if (!item) {
+    nextUpArea.innerHTML = NEXTUP_PLACEHOLDER;
+    if (btnSetImage) {
+      btnSetImage.style.display = 'none';
+    }
+    return;
+  }
+
+  const thumb = buildThumb(item, { interactive: false });
+  nextUpArea.appendChild(thumb);
+  if (btnSetImage) {
+    btnSetImage.style.display = item.type === 'audio' ? 'inline-flex' : 'none';
+  }
 }
 
 function renderPreview(item) {
@@ -322,210 +278,81 @@ function renderPreview(item) {
     previewArea.appendChild(img);
   } else if (item.type === 'audio') {
     const audio = document.createElement('audio');
-    audio.src = toFileURL(item.path);
     audio.controls = true;
+    audio.src = toFileURL(item.path);
     previewArea.appendChild(audio);
   } else {
     const video = document.createElement('video');
-    video.src = toFileURL(item.path);
     video.controls = true;
     video.playsInline = true;
+    video.src = toFileURL(item.path);
     previewArea.appendChild(video);
   }
 }
 
-function setNextUpPlaceholder() {
-  if (!nextUpArea) return;
-  nextUpArea.innerHTML = NEXTUP_PLACEHOLDER_HTML;
-  if (btnSetImage) {
-    btnSetImage.style.display = 'none';
-  }
-}
-
-function clearNextUp() {
-  nextUpId = null;
-  setNextUpPlaceholder();
-  renderGrid();
-  logControl('INFO', 'Cleared next up item');
-}
-
 function stageNext(id) {
-  const item = media.find((m) => m.id === id);
-  if (!item) {
-    clearNextUp();
-    return;
-  }
-  nextUpId = id;
-  if (nextUpArea) {
-    nextUpArea.innerHTML = '';
-    const thumb = buildThumb(item, { interactive: false });
-    thumb.classList.add('selected', 'staged');
-    nextUpArea.appendChild(thumb);
-  }
-  if (btnSetImage) {
-    btnSetImage.style.display = item.type === 'audio' ? 'inline-flex' : 'none';
-  }
-  renderGrid();
-  logControl('INFO', 'Staged next item', { id: item.id, type: item.type });
+  const item = media.find((entry) => entry.id === id) ?? null;
+  nextUpId = item ? item.id : null;
+  renderNextUp(item);
+  renderMediaGrid();
 }
 
-function cue(i) {
-  const item = media[i];
-  if (!item) return;
-
-  if (nextUpId === item.id) {
-    nextUpId = null;
-    setNextUpPlaceholder();
-  }
-
-  previewId = item.id;
+function previewItem(id) {
+  const item = media.find((entry) => entry.id === id) ?? null;
+  previewId = item ? item.id : null;
   renderPreview(item);
-  renderGrid();
-  logControl('INFO', 'Cued item to preview', { id: item.id, type: item.type, index: i });
+  renderMediaGrid();
 }
 
 function pushToProgram() {
   if (!previewId) return;
-  const item = media.find((m) => m.id === previewId);
+  const item = media.find((entry) => entry.id === previewId);
   if (!item) return;
-  index = media.findIndex((m) => m.id === previewId);
-  if (index < 0) return;
 
-  window.presenterAPI?.showOnProgram({
+  window.presenterAPI?.showOnProgram?.({
     path: item.path,
     type: item.type,
-    displayImage: item.displayImage || null
+    displayImage: item.displayImage ?? null
   });
-
-  logControl('INFO', 'Push to Program', { id: item.id, type: item.type });
-
-  if (nextUpId === item.id) {
-    nextUpId = null;
-    setNextUpPlaceholder();
-  }
-
-  play();
-  renderGrid();
 }
-
-function play() {
-  if (index < 0 || !media[index]) return;
-  window.presenterAPI?.play();
-  logControl('INFO', 'Play requested');
-}
-
-function pause() {
-  window.presenterAPI?.pause();
-  logControl('INFO', 'Pause requested');
-}
-
-function next() {
-  const targetIndex = index + 1;
-  if (targetIndex < media.length) {
-    cue(targetIndex);
-    pushToProgram();
-  }
-}
-
-function prev() {
-  const targetIndex = index - 1;
-  if (targetIndex >= 0) {
-    cue(targetIndex);
-    pushToProgram();
-  }
-}
-
-btnPlayNext?.addEventListener('click', () => {
-  if (!nextUpId) return;
-  const i = media.findIndex((m) => m.id === nextUpId);
-  if (i >= 0) {
-    cue(i);
-    pushToProgram();
-  }
-});
-
-btnClearNext?.addEventListener('click', () => {
-  clearNextUp();
-});
 
 btnPush?.addEventListener('click', () => {
   pushToProgram();
 });
 
+btnPlayNext?.addEventListener('click', () => {
+  if (!nextUpId) return;
+  previewItem(nextUpId);
+});
+
+btnClearNext?.addEventListener('click', () => {
+  nextUpId = null;
+  renderNextUp(null);
+  renderMediaGrid();
+});
+
+btnPlay?.addEventListener('click', () => window.presenterAPI?.play?.());
+btnPause?.addEventListener('click', () => window.presenterAPI?.pause?.());
+btnNext?.addEventListener('click', () => window.presenterAPI?.next?.());
+btnPrev?.addEventListener('click', () => window.presenterAPI?.prev?.());
+btnBlack?.addEventListener('click', () => window.presenterAPI?.black?.());
+btnUnblack?.addEventListener('click', () => window.presenterAPI?.unblack?.());
+
 btnSetImage?.addEventListener('click', async () => {
   if (!nextUpId) return;
-  const item = media.find((m) => m.id === nextUpId);
-  if (!item || item.type !== 'audio') return;
-
-  let imagePath = null;
+  const target = media.find((entry) => entry.id === nextUpId);
+  if (!target) return;
+  if (!window.presenterAPI?.pickImage) return;
   try {
-    if (window.presenterAPI?.pickMedia) {
-      const files = await window.presenterAPI.pickMedia({ imagesOnly: true });
-      if (files && files.length) {
-        [imagePath] = files;
-      }
+    const result = await window.presenterAPI.pickImage();
+    if (result) {
+      target.displayImage = result;
+      renderNextUp(target);
+      renderMediaGrid();
     }
   } catch (err) {
-    console.error('Image picker failed, using fallback', err);
+    console.error('Failed to pick display image', err);
   }
-
-  if (!imagePath) {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.jpg,.jpeg,.png';
-    input.style.display = 'none';
-    input.addEventListener('change', () => {
-      const selected = input.files && input.files[0];
-      if (selected?.path) {
-        item.displayImage = selected.path;
-        stageNext(item.id);
-      }
-      input.remove();
-    }, { once: true });
-    input.addEventListener('cancel', () => {
-      input.remove();
-    }, { once: true });
-    document.body.appendChild(input);
-    input.click();
-    return;
-  }
-
-  item.displayImage = imagePath;
-  stageNext(item.id);
-});
-
-btnAdd?.addEventListener('click', async () => {
-  try {
-    if (window.presenterAPI?.pickMedia) {
-      const files = await window.presenterAPI.pickMedia();
-      if (files && files.length) {
-        addPathsToMedia(files);
-        return;
-      }
-    }
-  } catch (err) {
-    console.error('Add Media via IPC failed, using fallback:', err);
-  }
-  openFileFallback();
-});
-
-function openFileFallback() {
-  fileInput.click();
-}
-
-btnPlay?.addEventListener('click', () => play());
-btnPause?.addEventListener('click', () => pause());
-btnNext?.addEventListener('click', () => next());
-btnPrev?.addEventListener('click', () => prev());
-btnBlack?.addEventListener('click', () => window.presenterAPI?.black());
-btnUnblack?.addEventListener('click', () => window.presenterAPI?.unblack());
-
-window.addEventListener('keydown', (e) => {
-  if (e.code === 'Space') { e.preventDefault(); play(); }
-  if (e.code === 'ArrowRight') next();
-  if (e.code === 'ArrowLeft') prev();
-  if (e.key && e.key.toLowerCase() === 'b') window.presenterAPI?.black();
-  if (e.key && e.key.toLowerCase() === 'u') window.presenterAPI?.unblack();
 });
 
 const fileInput = document.createElement('input');
@@ -535,70 +362,63 @@ fileInput.accept = '.mp4,.mov,.webm,.mp3,.wav,.m4a,.jpg,.jpeg,.png';
 fileInput.style.display = 'none';
 document.body.appendChild(fileInput);
 fileInput.addEventListener('change', () => {
-  const paths = [...fileInput.files].map((f) => f.path);
+  const paths = Array.from(fileInput.files || []).map((file) => file.path).filter(Boolean);
   addPathsToMedia(paths);
   fileInput.value = '';
 });
 
-function addPathsToMedia(paths = []) {
-  const items = paths
-    .map((p) => ({
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      path: p,
-      type: classify(p),
-      name: p.split(/[\\/]/).pop() || p,
-      displayImage: null
-    }))
-    .filter((item) => item.type !== 'unknown');
+if (btnAdd) {
+  btnAdd.onclick = async () => {
+    if (window.presenterAPI?.pickMedia) {
+      try {
+        const files = await window.presenterAPI.pickMedia();
+        if (files?.length) {
+          addPathsToMedia(files);
+          return;
+        }
+      } catch (err) {
+        console.error('pickMedia failed', err);
+      }
+    }
+    fileInput.click();
+  };
+}
 
-  if (!items.length) return;
+grid?.addEventListener('click', () => {
+  // absorb stray clicks so the grid keeps focus when empty
+});
 
-  const hadPreview = Boolean(previewId);
-  media = media.concat(items);
+const dropTargets = [grid, previewArea, nextUpArea, leftPanel].filter(Boolean);
 
-  logControl('INFO', 'Added media items', { count: items.length });
+dropTargets.forEach((target) => {
+  target.addEventListener('dragover', (event) => {
+    event.preventDefault();
+    target.classList.add('droppable');
+  });
 
-  if (!hadPreview && media.length) {
-    cue(0);
-  } else {
-    renderGrid();
+  target.addEventListener('dragleave', () => {
+    target.classList.remove('droppable');
+  });
+
+  target.addEventListener('drop', (event) => {
+    event.preventDefault();
+    target.classList.remove('droppable');
+    const files = Array.from(event.dataTransfer?.files || []).map((file) => file.path).filter(Boolean);
+    if (files.length) {
+      addPathsToMedia(files);
+    }
+  });
+});
+
+window.presenterAPI?.onProgramEvent?.('display:ended', () => {
+  if (!media.length) return;
+  const currentIndex = media.findIndex((item) => item.id === previewId);
+  if (currentIndex >= 0 && currentIndex + 1 < media.length) {
+    const nextItem = media[currentIndex + 1];
+    stageNext(nextItem.id);
+    previewItem(nextItem.id);
   }
-}
-
-const droppableAreas = [grid, previewArea, nextUpArea, leftPanel].filter(Boolean);
-droppableAreas.forEach((el) => {
-  el.addEventListener('dragover', (event) => {
-    event.preventDefault();
-  });
-  el.addEventListener('dragenter', (event) => {
-    event.preventDefault();
-    el.classList.add('droppable');
-  });
-  el.addEventListener('dragleave', () => {
-    el.classList.remove('droppable');
-  });
-  el.addEventListener('drop', (event) => {
-    event.preventDefault();
-    el.classList.remove('droppable');
-    const files = [...event.dataTransfer.files].map((f) => f.path).filter(Boolean);
-    if (!files.length) return;
-    addPathsToMedia(files);
-  });
 });
 
-window.presenterAPI?.onProgramEvent('display:ended', () => {
-  logControl('INFO', 'Display reported ended event');
-  next();
-});
-
-window.presenterAPI?.onProgramEvent('display:error', (payload = {}) => {
-  const { message, item } = payload;
-  console.error('Program error', message, item);
-});
-
-setNextUpPlaceholder();
-renderGrid();
-
-if (logAPI?.append) {
-  logAPI.append('INFO', 'CONTROL', 'Logger initialized');
-}
+renderNextUp(null);
+renderMediaGrid();
