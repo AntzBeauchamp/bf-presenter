@@ -5,36 +5,19 @@ const btnPrev = document.getElementById('btnPrev');
 const btnNext = document.getElementById('btnNext');
 const btnBlack = document.getElementById('btnBlack');
 const btnUnblack = document.getElementById('btnUnblack');
-const list = document.getElementById('playlist');
+const btnPlayNext = document.getElementById('btnPlayNext');
+const btnClearNext = document.getElementById('btnClearNext');
+
+const grid = document.getElementById('thumbGrid');
 const previewArea = document.getElementById('previewArea');
-const status = document.getElementById('status');
-const mainEl = document.querySelector('main');
+const nextUpArea = document.getElementById('nextUpArea');
+const leftPanel = document.querySelector('.left-panel');
 
-let playlist = []; // [{ path, type: 'video'|'audio'|'image', name }]
+let media = [];
 let index = -1;
+let nextUpId = null;
 
-const fileInput = document.createElement('input');
-fileInput.type = 'file';
-fileInput.multiple = true;
-fileInput.accept = '.mp4,.mov,.webm,.mp3,.wav,.m4a,.jpg,.jpeg,.png';
-fileInput.style.display = 'none';
-document.body.appendChild(fileInput);
-
-fileInput.addEventListener('change', () => {
-  const paths = [...fileInput.files].map((f) => f.path);
-  addPathsToPlaylist(paths);
-  fileInput.value = '';
-});
-
-function setStatus(message, isError = false) {
-  if (!status) return;
-  status.textContent = message || '';
-  status.classList.toggle('error', Boolean(isError));
-  if (message) {
-    const logger = isError ? console.error : console.log;
-    logger(`[status] ${message}`);
-  }
-}
+const NEXTUP_PLACEHOLDER_HTML = '<div class="nextup-placeholder">Click a thumbnail to stage it here.</div>';
 
 function classify(filePath) {
   const ext = filePath.split('.').pop().toLowerCase();
@@ -44,112 +27,180 @@ function classify(filePath) {
   return 'unknown';
 }
 
-function renderList() {
-  list.innerHTML = '';
-  playlist.forEach((item, i) => {
-    const li = document.createElement('li');
-    li.textContent = `${i === index ? '▶ ' : ''}${item.name}`;
-    li.addEventListener('click', () => {
-      index = i;
-      cue(index);
+function toFileURL(p) {
+  try {
+    return window.presenterAPI?.toFileURL(p) ?? `file://${p}`;
+  } catch (err) {
+    console.warn('Failed to convert to file URL', err);
+    return `file://${p}`;
+  }
+}
+
+function iconDataURI(kind) {
+  const svgs = {
+    video: '<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" fill="#000"/><polygon points="18,14 36,24 18,34" fill="#9bd"/></svg>',
+    audio: '<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" fill="#000"/><path d="M22 14v20a6 6 0 1 1-4-5.66V14h4zM30 19v10a4 4 0 1 0 4 0V19h-4z" fill="#e9b"/></svg>',
+    image: '<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" fill="#000"/><circle cx="14" cy="16" r="4" fill="#9f9"/><path d="M6 36l10-12 8 9 6-7 12 10H6z" fill="#9f9"/></svg>'
+  };
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svgs[kind] || svgs.image);
+}
+
+function buildThumb(item, { interactive = true } = {}) {
+  const div = document.createElement('div');
+  div.className = 'thumb';
+  div.dataset.id = item.id;
+
+  const img = document.createElement('img');
+  if (item.type === 'image') {
+    img.src = toFileURL(item.path);
+  } else if (item.type === 'video') {
+    img.src = iconDataURI('video');
+  } else if (item.type === 'audio') {
+    img.src = iconDataURI('audio');
+  } else {
+    img.src = iconDataURI('image');
+  }
+  div.appendChild(img);
+
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+
+  const name = document.createElement('div');
+  name.className = 'name';
+  name.textContent = item.name;
+
+  const badge = document.createElement('span');
+  badge.className = `badge ${item.type}`;
+  badge.textContent = item.type.toUpperCase();
+
+  meta.appendChild(name);
+  meta.appendChild(badge);
+  div.appendChild(meta);
+
+  if (interactive) {
+    div.addEventListener('click', (event) => {
+      event.preventDefault();
+      stageNext(item.id);
     });
-    li.addEventListener('dblclick', () => {
-      index = i;
-      cue(index);
-      play();
+    div.addEventListener('dblclick', (event) => {
+      event.preventDefault();
+      const i = media.findIndex((m) => m.id === item.id);
+      if (i >= 0) {
+        index = i;
+        cue(index);
+        play();
+      }
     });
-    list.appendChild(li);
+  } else {
+    div.classList.add('readonly');
+  }
+
+  return div;
+}
+
+function renderGrid() {
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  if (!media.length) {
+    const empty = document.createElement('div');
+    empty.className = 'nextup-placeholder';
+    empty.textContent = 'Drop files here or use Add Media to build your playlist.';
+    empty.style.gridColumn = '1 / -1';
+    grid.appendChild(empty);
+    return;
+  }
+
+  media.forEach((item) => {
+    const thumb = buildThumb(item);
+    if (item.id === nextUpId) {
+      thumb.classList.add('staged');
+    }
+    if (index >= 0 && media[index] && media[index].id === item.id) {
+      thumb.classList.add('selected');
+    }
+    grid.appendChild(thumb);
   });
 }
 
-function addPreviewElement(el, item) {
-  el.addEventListener('error', () => {
-    setStatus(`Failed to preview ${item.name}`, true);
-  });
+function renderPreview(item) {
+  if (!previewArea) return;
   previewArea.innerHTML = '';
-  previewArea.appendChild(el);
+  if (!item) return;
+
+  if (item.type === 'image') {
+    const img = document.createElement('img');
+    img.src = toFileURL(item.path);
+    previewArea.appendChild(img);
+  } else if (item.type === 'audio') {
+    const audio = document.createElement('audio');
+    audio.src = toFileURL(item.path);
+    audio.controls = true;
+    previewArea.appendChild(audio);
+  } else {
+    const video = document.createElement('video');
+    video.src = toFileURL(item.path);
+    video.controls = true;
+    video.playsInline = true;
+    previewArea.appendChild(video);
+  }
+}
+
+function setNextUpPlaceholder() {
+  if (!nextUpArea) return;
+  nextUpArea.innerHTML = NEXTUP_PLACEHOLDER_HTML;
+}
+
+function clearNextUp() {
+  nextUpId = null;
+  setNextUpPlaceholder();
+  renderGrid();
+}
+
+function stageNext(id) {
+  const item = media.find((m) => m.id === id);
+  if (!item) {
+    clearNextUp();
+    return;
+  }
+  nextUpId = id;
+  if (nextUpArea) {
+    nextUpArea.innerHTML = '';
+    const thumb = buildThumb(item, { interactive: false });
+    thumb.classList.add('selected', 'staged');
+    nextUpArea.appendChild(thumb);
+  }
+  renderGrid();
 }
 
 function cue(i) {
-  const item = playlist[i];
+  const item = media[i];
   if (!item) return;
 
-  try {
-    const url = window.presenterAPI.toFileURL(item.path);
-    let element;
-    if (item.type === 'image') {
-      element = new Image();
-      element.src = url;
-    } else if (item.type === 'audio') {
-      element = document.createElement('audio');
-      element.src = url;
-      element.controls = true;
-      element.preload = 'metadata';
-    } else if (item.type === 'video') {
-      element = document.createElement('video');
-      element.src = url;
-      element.controls = true;
-      element.preload = 'metadata';
-      element.playsInline = true;
-      element.addEventListener('loadeddata', () => {
-        try { element.pause(); element.currentTime = 0; } catch (err) { console.warn('Preview pause failed', err); }
-      });
-    }
-
-    if (element) addPreviewElement(element, item);
-    setStatus(`Cued ${item.name}`);
-    window.presenterAPI.showOnProgram({ path: item.path, type: item.type, name: item.name });
-    renderList();
-  } catch (err) {
-    console.error('Cue failed', err);
-    setStatus(`Failed to cue ${item?.name || 'item'}`, true);
-  }
-}
-
-function addPathsToPlaylist(paths) {
-  const items = paths
-    .map((p) => ({
-      path: p,
-      type: classify(p),
-      name: p.split(/[\\/]/).pop() || p,
-    }))
-    .filter((item) => item.type !== 'unknown');
-
-  if (!items.length) {
-    setStatus('No supported media files found.', true);
-    return;
+  if (nextUpId === item.id) {
+    nextUpId = null;
+    setNextUpPlaceholder();
   }
 
-  playlist = playlist.concat(items);
-
-  if (index === -1) {
-    index = 0;
-    cue(index);
-  } else {
-    renderList();
-    setStatus(`Added ${items.length} item${items.length === 1 ? '' : 's'} to playlist.`);
-  }
+  window.presenterAPI?.showOnProgram({ path: item.path, type: item.type, name: item.name });
+  renderPreview(item);
+  renderGrid();
 }
 
 function play() {
-  if (index < 0 || !playlist[index]) {
-    setStatus('Nothing cued to play.', true);
-    return;
-  }
-  window.presenterAPI.play();
+  if (index < 0 || !media[index]) return;
+  window.presenterAPI?.play();
 }
 
 function pause() {
-  window.presenterAPI.pause();
+  window.presenterAPI?.pause();
 }
 
-function next(auto = false) {
-  if (index < playlist.length - 1) {
+function next() {
+  if (index < media.length - 1) {
     index += 1;
     cue(index);
     play();
-  } else if (!auto) {
-    setStatus('Reached end of playlist.', true);
   }
 }
 
@@ -161,40 +212,89 @@ function prev() {
   }
 }
 
-btnAdd.onclick = async () => {
+btnPlayNext?.addEventListener('click', () => {
+  if (!nextUpId) return;
+  const i = media.findIndex((m) => m.id === nextUpId);
+  if (i >= 0) {
+    index = i;
+    cue(index);
+    play();
+  }
+});
+
+btnClearNext?.addEventListener('click', () => {
+  clearNextUp();
+});
+
+btnAdd?.addEventListener('click', async () => {
   try {
-    if (window.presenterAPI && typeof window.presenterAPI.pickMedia === 'function') {
+    if (window.presenterAPI?.pickMedia) {
       const files = await window.presenterAPI.pickMedia();
       if (files && files.length) {
-        addPathsToPlaylist(files);
-      } else {
-        fileInput.click();
+        addPathsToMedia(files);
+        return;
       }
-    } else {
-      fileInput.click();
     }
-  } catch (e) {
-    console.error('Add Media via IPC failed, using fallback:', e);
-    fileInput.click();
+  } catch (err) {
+    console.error('Add Media via IPC failed, using fallback:', err);
   }
-};
+  openFileFallback();
+});
 
-btnPlay.addEventListener('click', () => play());
-btnPause.addEventListener('click', () => pause());
-btnNext.addEventListener('click', () => next());
-btnPrev.addEventListener('click', () => prev());
-btnBlack.addEventListener('click', () => window.presenterAPI.black());
-btnUnblack.addEventListener('click', () => window.presenterAPI.unblack());
+function openFileFallback() {
+  fileInput.click();
+}
+
+btnPlay?.addEventListener('click', () => play());
+btnPause?.addEventListener('click', () => pause());
+btnNext?.addEventListener('click', () => next());
+btnPrev?.addEventListener('click', () => prev());
+btnBlack?.addEventListener('click', () => window.presenterAPI?.black());
+btnUnblack?.addEventListener('click', () => window.presenterAPI?.unblack());
 
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Space') { e.preventDefault(); play(); }
   if (e.code === 'ArrowRight') next();
   if (e.code === 'ArrowLeft') prev();
-  if (e.key && e.key.toLowerCase() === 'b') window.presenterAPI.black();
-  if (e.key && e.key.toLowerCase() === 'u') window.presenterAPI.unblack();
+  if (e.key && e.key.toLowerCase() === 'b') window.presenterAPI?.black();
+  if (e.key && e.key.toLowerCase() === 'u') window.presenterAPI?.unblack();
 });
 
-const droppableAreas = [mainEl, list].filter(Boolean);
+const fileInput = document.createElement('input');
+fileInput.type = 'file';
+fileInput.multiple = true;
+fileInput.accept = '.mp4,.mov,.webm,.mp3,.wav,.m4a,.jpg,.jpeg,.png';
+fileInput.style.display = 'none';
+document.body.appendChild(fileInput);
+fileInput.addEventListener('change', () => {
+  const paths = [...fileInput.files].map((f) => f.path);
+  addPathsToMedia(paths);
+  fileInput.value = '';
+});
+
+function addPathsToMedia(paths = []) {
+  const items = paths
+    .map((p) => ({
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      path: p,
+      type: classify(p),
+      name: p.split(/[\\/]/).pop() || p
+    }))
+    .filter((item) => item.type !== 'unknown');
+
+  if (!items.length) return;
+
+  media = media.concat(items);
+
+  if (index === -1 && media.length) {
+    index = 0;
+    cue(index);
+  } else {
+    renderGrid();
+  }
+}
+
+const droppableAreas = [grid, previewArea, nextUpArea, leftPanel].filter(Boolean);
 droppableAreas.forEach((el) => {
   el.addEventListener('dragover', (event) => {
     event.preventDefault();
@@ -210,22 +310,19 @@ droppableAreas.forEach((el) => {
     event.preventDefault();
     el.classList.remove('droppable');
     const files = [...event.dataTransfer.files].map((f) => f.path).filter(Boolean);
-    if (!files.length) {
-      setStatus('No files detected from drop.', true);
-      return;
-    }
-    addPathsToPlaylist(files);
+    if (!files.length) return;
+    addPathsToMedia(files);
   });
 });
 
-window.presenterAPI.onProgramEvent('display:ended', () => {
-  next(true);
+window.presenterAPI?.onProgramEvent('display:ended', () => {
+  next();
 });
 
-window.presenterAPI.onProgramEvent('display:error', (payload = {}) => {
+window.presenterAPI?.onProgramEvent('display:error', (payload = {}) => {
   const { message, item } = payload;
-  const label = item?.name ? `: ${item.name}` : '';
-  setStatus(`Program error${label ? label : ''}${message ? ` – ${message}` : ''}`, true);
+  console.error('Program error', message, item);
 });
 
-setStatus('Drop files or use Add Media to build your playlist.');
+setNextUpPlaceholder();
+renderGrid();

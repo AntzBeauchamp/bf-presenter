@@ -95,13 +95,8 @@ function tryPlay(el, label) {
   });
 }
 
-video.addEventListener('ended', () => {
-  window.presenterAPI.send('display:ended');
-});
-
-audio.addEventListener('ended', () => {
-  window.presenterAPI.send('display:ended');
-});
+video.onended = () => window.presenterAPI.send('display:ended');
+audio.onended = () => window.presenterAPI.send('display:ended');
 
 window.presenterAPI.onProgramEvent('display:show-item', (item) => showItem(item));
 window.presenterAPI.onProgramEvent('display:black', () => {

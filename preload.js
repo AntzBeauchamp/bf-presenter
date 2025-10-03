@@ -8,8 +8,6 @@ contextBridge.exposeInMainWorld('presenterAPI', {
   unblack: () => ipcRenderer.send('display:unblack'),
   pause: () => ipcRenderer.send('display:pause'),
   play: () => ipcRenderer.send('display:play'),
-  send: (channel, payload) => ipcRenderer.send(channel, payload),
-  onProgramEvent: (channel, cb) => ipcRenderer.on(channel, (_e, data) => cb(data)),
   toFileURL: (absPath) => {
     try {
       return pathToFileURL(absPath).href;
@@ -17,5 +15,7 @@ contextBridge.exposeInMainWorld('presenterAPI', {
       console.error('Failed to convert path to file URL', err);
       return absPath;
     }
-  }
+  },
+  send: (channel, payload) => ipcRenderer.send(channel, payload),
+  onProgramEvent: (channel, cb) => ipcRenderer.on(channel, (_e, data) => cb(data))
 });
