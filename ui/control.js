@@ -31,7 +31,14 @@ const LOG_BUFFER_MAX = 1000;
 let media = [];
 let previewId = null;
 let nextUpId = null;
+let index = -1;
 const logBuffer = [];
+
+function fileUrl(p) {
+  return window.presenterAPI && typeof window.presenterAPI.toFileURL === 'function'
+    ? window.presenterAPI.toFileURL(p)
+    : `file://${p}`;
+}
 
 function pad2(n) {
   return n.toString().padStart(2, '0');
@@ -174,9 +181,9 @@ function buildThumb(item, { interactive = true } = {}) {
 
   const img = document.createElement('img');
   if (item.type === 'image') {
-    img.src = window.presenterAPI.toFileURL(item.path);
+    img.src = fileUrl(item.path);
   } else if (item.type === 'audio' && item.displayImage) {
-    img.src = window.presenterAPI.toFileURL(item.displayImage);
+    img.src = fileUrl(item.displayImage);
   } else if (item.type === 'video') {
     img.src = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" rx="6" fill="#191919"/><polygon points="20,16 34,24 20,32" fill="#6ec1ff"/></svg>');
   } else {
@@ -209,7 +216,6 @@ function buildThumb(item, { interactive = true } = {}) {
     });
 
     container.addEventListener('dblclick', () => {
-      stageNext(item.id);
       previewItem(item.id);
       pushToProgram();
     });
@@ -265,18 +271,18 @@ function renderPreview(item) {
 
   if (item.type === 'image') {
     const img = document.createElement('img');
-    img.src = window.presenterAPI.toFileURL(item.path);
+    img.src = fileUrl(item.path);
     previewArea.appendChild(img);
   } else if (item.type === 'audio') {
     const audio = document.createElement('audio');
     audio.controls = true;
-    audio.src = window.presenterAPI.toFileURL(item.path);
+    audio.src = fileUrl(item.path);
     previewArea.appendChild(audio);
   } else {
     const video = document.createElement('video');
     video.controls = true;
     video.playsInline = true;
-    video.src = window.presenterAPI.toFileURL(item.path);
+    video.src = fileUrl(item.path);
     previewArea.appendChild(video);
   }
 }
@@ -289,24 +295,30 @@ function stageNext(id) {
 }
 
 function previewItem(id) {
-  const item = media.find((entry) => entry.id === id) ?? null;
-  previewId = item ? item.id : null;
-  renderPreview(item);
+  if (!id) {
+    previewId = null;
+    renderPreview(null);
+    renderMediaGrid();
+    return;
+  }
+  const idx = media.findIndex((entry) => entry.id === id);
+  if (idx < 0) return;
+  previewId = id;
+  renderPreview(media[idx]);
   renderMediaGrid();
 }
 
 function pushToProgram() {
   if (!previewId) return;
   const item = media.find((entry) => entry.id === previewId);
-  console.log('CONTROL: pushing to program', item);
   if (!item) return;
-
-  window.presenterAPI?.showOnProgram?.({
+  index = media.findIndex((entry) => entry.id === previewId);
+  window.presenterAPI.showOnProgram({
     path: item.path,
     type: item.type,
-    displayImage: item.displayImage ?? null
+    displayImage: item.displayImage || null
   });
-  window.presenterAPI?.play?.();
+  window.presenterAPI.play();
 }
 
 btnPush?.addEventListener('click', () => {
@@ -316,6 +328,7 @@ btnPush?.addEventListener('click', () => {
 btnPlayNext?.addEventListener('click', () => {
   if (!nextUpId) return;
   previewItem(nextUpId);
+  pushToProgram();
 });
 
 btnClearNext?.addEventListener('click', () => {
@@ -381,9 +394,9 @@ grid?.addEventListener('click', () => {
   // absorb stray clicks so the grid keeps focus when empty
 });
 
-const dropTargets = [grid, previewArea, nextUpArea, leftPanel].filter(Boolean);
+function setupDropTarget(target, onDrop) {
+  if (!target) return;
 
-dropTargets.forEach((target) => {
   target.addEventListener('dragover', (event) => {
     event.preventDefault();
     target.classList.add('droppable');
@@ -396,11 +409,36 @@ dropTargets.forEach((target) => {
   target.addEventListener('drop', (event) => {
     event.preventDefault();
     target.classList.remove('droppable');
-    const files = Array.from(event.dataTransfer?.files || []).map((file) => file.path).filter(Boolean);
-    if (files.length) {
-      addPathsToMedia(files);
-    }
+    const paths = Array.from(event.dataTransfer?.files || []).map((file) => file.path).filter(Boolean);
+    if (!paths.length) return;
+    onDrop(paths);
   });
+}
+
+setupDropTarget(grid, (paths) => {
+  addPathsToMedia(paths);
+});
+
+setupDropTarget(leftPanel, (paths) => {
+  addPathsToMedia(paths);
+});
+
+setupDropTarget(previewArea, (paths) => {
+  const before = media.length;
+  addPathsToMedia(paths);
+  const first = media[before];
+  if (first) {
+    previewItem(first.id);
+  }
+});
+
+setupDropTarget(nextUpArea, (paths) => {
+  const before = media.length;
+  addPathsToMedia(paths);
+  const first = media[before];
+  if (first) {
+    stageNext(first.id);
+  }
 });
 
 window.presenterAPI?.onProgramEvent?.('display:ended', () => {
