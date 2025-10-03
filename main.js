@@ -58,13 +58,16 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
-ipcMain.handle('pick-media', async () => {
+ipcMain.handle('pick-media', async (_evt, opts = {}) => {
+  const allowImagesOnly = Boolean(opts?.imagesOnly);
+  const filters = allowImagesOnly
+    ? [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png'] }]
+    : [{ name: 'Media', extensions: ['mp4', 'mov', 'webm', 'mp3', 'wav', 'm4a', 'jpg', 'jpeg', 'png'] }];
+
   const { canceled, filePaths } = await dialog.showOpenDialog(controlWin, {
-    title: 'Add media',
+    title: allowImagesOnly ? 'Choose image' : 'Add media',
     properties: ['openFile', 'multiSelections'],
-    filters: [
-      { name: 'Media', extensions: ['mp4','mov','webm','mp3','wav','m4a','jpg','jpeg','png'] }
-    ]
+    filters
   });
   if (canceled) return [];
   return filePaths.filter(p => fs.existsSync(p));

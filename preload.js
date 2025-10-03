@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { pathToFileURL } from 'url';
 
 contextBridge.exposeInMainWorld('presenterAPI', {
-  pickMedia: () => ipcRenderer.invoke('pick-media'),
+  pickMedia: (opts) => ipcRenderer.invoke('pick-media', opts || {}),
   showOnProgram: (item) => ipcRenderer.send('display:show-item', item),
   black: () => ipcRenderer.send('display:black'),
   unblack: () => ipcRenderer.send('display:unblack'),

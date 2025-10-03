@@ -7,6 +7,8 @@ const btnBlack = document.getElementById('btnBlack');
 const btnUnblack = document.getElementById('btnUnblack');
 const btnPlayNext = document.getElementById('btnPlayNext');
 const btnClearNext = document.getElementById('btnClearNext');
+const btnPush = document.getElementById('btnPush');
+const btnSetImage = document.getElementById('btnSetImage');
 
 const grid = document.getElementById('thumbGrid');
 const previewArea = document.getElementById('previewArea');
@@ -15,6 +17,7 @@ const leftPanel = document.querySelector('.left-panel');
 
 let media = [];
 let index = -1;
+let previewId = null;
 let nextUpId = null;
 
 const NEXTUP_PLACEHOLDER_HTML = '<div class="nextup-placeholder">Click a thumbnail to stage it here.</div>';
@@ -53,6 +56,8 @@ function buildThumb(item, { interactive = true } = {}) {
   const img = document.createElement('img');
   if (item.type === 'image') {
     img.src = toFileURL(item.path);
+  } else if (item.type === 'audio' && item.displayImage) {
+    img.src = toFileURL(item.displayImage);
   } else if (item.type === 'video') {
     img.src = iconDataURI('video');
   } else if (item.type === 'audio') {
@@ -86,9 +91,8 @@ function buildThumb(item, { interactive = true } = {}) {
       event.preventDefault();
       const i = media.findIndex((m) => m.id === item.id);
       if (i >= 0) {
-        index = i;
-        cue(index);
-        play();
+        cue(i);
+        pushToProgram();
       }
     });
   } else {
@@ -115,6 +119,9 @@ function renderGrid() {
     const thumb = buildThumb(item);
     if (item.id === nextUpId) {
       thumb.classList.add('staged');
+    }
+    if (previewId === item.id) {
+      thumb.classList.add('previewing');
     }
     if (index >= 0 && media[index] && media[index].id === item.id) {
       thumb.classList.add('selected');
@@ -149,6 +156,9 @@ function renderPreview(item) {
 function setNextUpPlaceholder() {
   if (!nextUpArea) return;
   nextUpArea.innerHTML = NEXTUP_PLACEHOLDER_HTML;
+  if (btnSetImage) {
+    btnSetImage.style.display = 'none';
+  }
 }
 
 function clearNextUp() {
@@ -170,6 +180,9 @@ function stageNext(id) {
     thumb.classList.add('selected', 'staged');
     nextUpArea.appendChild(thumb);
   }
+  if (btnSetImage) {
+    btnSetImage.style.display = item.type === 'audio' ? 'inline-flex' : 'none';
+  }
   renderGrid();
 }
 
@@ -182,8 +195,33 @@ function cue(i) {
     setNextUpPlaceholder();
   }
 
-  window.presenterAPI?.showOnProgram({ path: item.path, type: item.type, name: item.name });
+  previewId = item.id;
   renderPreview(item);
+  renderGrid();
+}
+
+function pushToProgram() {
+  if (!previewId) return;
+  const item = media.find((m) => m.id === previewId);
+  if (!item) return;
+  const programIndex = media.findIndex((m) => m.id === previewId);
+  if (programIndex < 0) return;
+
+  window.presenterAPI?.showOnProgram({
+    path: item.path,
+    type: item.type,
+    name: item.name,
+    displayImage: item.displayImage || null
+  });
+
+  index = programIndex;
+
+  if (nextUpId === item.id) {
+    nextUpId = null;
+    setNextUpPlaceholder();
+  }
+
+  play();
   renderGrid();
 }
 
@@ -197,18 +235,18 @@ function pause() {
 }
 
 function next() {
-  if (index < media.length - 1) {
-    index += 1;
-    cue(index);
-    play();
+  const targetIndex = index + 1;
+  if (targetIndex < media.length) {
+    cue(targetIndex);
+    pushToProgram();
   }
 }
 
 function prev() {
-  if (index > 0) {
-    index -= 1;
-    cue(index);
-    play();
+  const targetIndex = index - 1;
+  if (targetIndex >= 0) {
+    cue(targetIndex);
+    pushToProgram();
   }
 }
 
@@ -216,14 +254,59 @@ btnPlayNext?.addEventListener('click', () => {
   if (!nextUpId) return;
   const i = media.findIndex((m) => m.id === nextUpId);
   if (i >= 0) {
-    index = i;
-    cue(index);
-    play();
+    cue(i);
+    pushToProgram();
   }
 });
 
 btnClearNext?.addEventListener('click', () => {
   clearNextUp();
+});
+
+btnPush?.addEventListener('click', () => {
+  pushToProgram();
+});
+
+btnSetImage?.addEventListener('click', async () => {
+  if (!nextUpId) return;
+  const item = media.find((m) => m.id === nextUpId);
+  if (!item || item.type !== 'audio') return;
+
+  let imagePath = null;
+  try {
+    if (window.presenterAPI?.pickMedia) {
+      const files = await window.presenterAPI.pickMedia({ imagesOnly: true });
+      if (files && files.length) {
+        [imagePath] = files;
+      }
+    }
+  } catch (err) {
+    console.error('Image picker failed, using fallback', err);
+  }
+
+  if (!imagePath) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.jpg,.jpeg,.png';
+    input.style.display = 'none';
+    input.addEventListener('change', () => {
+      const selected = input.files && input.files[0];
+      if (selected?.path) {
+        item.displayImage = selected.path;
+        stageNext(item.id);
+      }
+      input.remove();
+    }, { once: true });
+    input.addEventListener('cancel', () => {
+      input.remove();
+    }, { once: true });
+    document.body.appendChild(input);
+    input.click();
+    return;
+  }
+
+  item.displayImage = imagePath;
+  stageNext(item.id);
 });
 
 btnAdd?.addEventListener('click', async () => {
@@ -278,17 +361,18 @@ function addPathsToMedia(paths = []) {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       path: p,
       type: classify(p),
-      name: p.split(/[\\/]/).pop() || p
+      name: p.split(/[\\/]/).pop() || p,
+      displayImage: null
     }))
     .filter((item) => item.type !== 'unknown');
 
   if (!items.length) return;
 
+  const hadPreview = Boolean(previewId);
   media = media.concat(items);
 
-  if (index === -1 && media.length) {
-    index = 0;
-    cue(index);
+  if (!hadPreview && media.length) {
+    cue(0);
   } else {
     renderGrid();
   }
