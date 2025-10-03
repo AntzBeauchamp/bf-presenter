@@ -82,6 +82,17 @@ function createWindows() {
     show: false
   });
   controlWin.loadFile(path.join('ui', 'control.html'));
+  // When control window is ready, send a test log
+  controlWin.webContents.once('did-finish-load', () => {
+    const payload = {
+      ts: Date.now(),
+      level: 'INFO',
+      source: 'MAIN',
+      msg: 'Smoke test: Control window loaded',
+      data: null
+    };
+    controlWin.webContents.send('log:append', payload);
+  });
   controlWin.once('ready-to-show', () => controlWin.show());
 
   displayWin.on('closed', () => { displayWin = null; if (controlWin) controlWin.close(); });
