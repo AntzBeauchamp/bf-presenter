@@ -67,15 +67,6 @@ console.log('Display ready');
   });
 })();
 
-function fileURL(path) {
-  try {
-    return window.presenterAPI.toFileURL(path);
-  } catch (err) {
-    console.error('Failed to convert path to URL', err);
-    return encodeURI(`file://${path}`);
-  }
-}
-
 function hideAll() {
   [img, video, audio].forEach((el) => {
     if (!el) return;
@@ -126,18 +117,18 @@ function showItem(item) {
 
   if (item.type === 'image') {
     img.onerror = (e) => notifyError('Unable to load image.', e);
-    img.src = fileURL(item.path);
+    img.src = window.presenterAPI.toFileURL(item.path);
     img.classList.remove('hidden');
     blackout.classList.add('hidden');
 
   } else if (item.type === 'audio') {
     audio.onerror = (e) => notifyError('Unable to load audio.', e);
-    audio.src = fileURL(item.path);
+    audio.src = window.presenterAPI.toFileURL(item.path);
     audio.classList.remove('hidden');
 
     if (item.displayImage) {
       img.onerror = (e) => notifyError('Unable to load display image.', e);
-      img.src = fileURL(item.displayImage);
+      img.src = window.presenterAPI.toFileURL(item.displayImage);
       img.classList.remove('hidden');
       blackout.classList.add('hidden');
     } else {
@@ -146,7 +137,7 @@ function showItem(item) {
 
   } else if (item.type === 'video') {
     video.onerror = (e) => notifyError('Unable to load video.', e);
-    video.src = fileURL(item.path);
+    video.src = window.presenterAPI.toFileURL(item.path);
     video.setAttribute('playsinline', '');
     video.classList.remove('hidden');
     blackout.classList.add('hidden');

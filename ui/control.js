@@ -141,15 +141,6 @@ function classify(path) {
   return 'unknown';
 }
 
-function toFileURL(path) {
-  try {
-    return window.presenterAPI?.toFileURL(path) ?? `file://${path}`;
-  } catch (err) {
-    console.warn('Failed to convert to file URL', err);
-    return `file://${path}`;
-  }
-}
-
 function createId() {
   return `media-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
 }
@@ -183,9 +174,9 @@ function buildThumb(item, { interactive = true } = {}) {
 
   const img = document.createElement('img');
   if (item.type === 'image') {
-    img.src = toFileURL(item.path);
+    img.src = window.presenterAPI.toFileURL(item.path);
   } else if (item.type === 'audio' && item.displayImage) {
-    img.src = toFileURL(item.displayImage);
+    img.src = window.presenterAPI.toFileURL(item.displayImage);
   } else if (item.type === 'video') {
     img.src = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" rx="6" fill="#191919"/><polygon points="20,16 34,24 20,32" fill="#6ec1ff"/></svg>');
   } else {
@@ -274,18 +265,18 @@ function renderPreview(item) {
 
   if (item.type === 'image') {
     const img = document.createElement('img');
-    img.src = toFileURL(item.path);
+    img.src = window.presenterAPI.toFileURL(item.path);
     previewArea.appendChild(img);
   } else if (item.type === 'audio') {
     const audio = document.createElement('audio');
     audio.controls = true;
-    audio.src = toFileURL(item.path);
+    audio.src = window.presenterAPI.toFileURL(item.path);
     previewArea.appendChild(audio);
   } else {
     const video = document.createElement('video');
     video.controls = true;
     video.playsInline = true;
-    video.src = toFileURL(item.path);
+    video.src = window.presenterAPI.toFileURL(item.path);
     previewArea.appendChild(video);
   }
 }
