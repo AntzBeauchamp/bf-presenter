@@ -24,6 +24,12 @@ const btnLogToggle = document.getElementById('btnLogToggle');
 const chkAutoscroll = document.getElementById('chkAutoscroll');
 const logAPI = window.presenterAPI?.log;
 
+if (window.presenterAPI?.log?.onAppend) {
+  window.presenterAPI.log.onAppend((payload) => {
+    appendLog(payload);
+  });
+}
+
 const LOG_BUFFER_MAX = 1000;
 const logBuffer = [];
 
@@ -40,7 +46,7 @@ function appendLog(entry) {
   if (!entry || !loggerBody) return;
   const { ts, level, source, msg, data } = entry;
 
-  console.log('appendLog got', level, source, msg, data);
+  console.log('appendLog received:', level, source, msg, data);
 
   const row = document.createElement('div');
   row.className = `log-row log-level-${level}`;
@@ -84,10 +90,6 @@ function appendLog(entry) {
   if (!chkAutoscroll || chkAutoscroll.checked) {
     loggerBody.scrollTop = loggerBody.scrollHeight;
   }
-}
-
-if (logAPI?.onAppend) {
-  logAPI.onAppend((payload) => appendLog(payload));
 }
 
 if (logAPI?.append) {
