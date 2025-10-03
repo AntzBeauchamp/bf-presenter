@@ -9,6 +9,43 @@ app.setPath('userData', path.join(__dirname, 'userdata'));
 
 let controlWin, displayWin;
 
+function sendLogToControl(payload) {
+  if (controlWin && !controlWin.isDestroyed()) {
+    controlWin.webContents.send('log:append', payload);
+  }
+}
+
+ipcMain.on('log:append', (_evt, payload) => {
+  if (!payload) return;
+  sendLogToControl(payload);
+});
+
+function logMain(level, msg, data) {
+  const payload = {
+    ts: Date.now(),
+    level,
+    source: 'MAIN',
+    msg,
+    data: data ?? null
+  };
+  sendLogToControl(payload);
+
+  const serializedMsg =
+    typeof msg === 'string' ? msg : (() => { try { return JSON.stringify(msg); } catch { return String(msg); } })();
+  const serializedData = data !== undefined && data !== null ? (() => { try { return ` ${JSON.stringify(data)}`; } catch { return ` ${String(data)}`; } })() : '';
+
+  const line = `[MAIN][${level}] ${serializedMsg}${serializedData}`;
+  if (level === 'ERROR') {
+    console.error(line);
+  } else if (level === 'WARN') {
+    console.warn(line);
+  } else {
+    console.log(line);
+  }
+}
+
+global.logMain = logMain;
+
 function createWindows() {
   const displays = screen.getAllDisplays();
   const primary = screen.getPrimaryDisplay();
@@ -74,23 +111,30 @@ ipcMain.handle('pick-media', async (_evt, opts = {}) => {
 });
 
 ipcMain.on('display:show-item', (_evt, item) => {
-  if (displayWin) displayWin.webContents.send('display:show-item', item);
+  if (displayWin && !displayWin.isDestroyed()) {
+    displayWin.webContents.send('display:show-item', item);
+    logMain('INFO', 'Forwarded item to display', { type: item?.type || 'unknown' });
+  } else {
+    logMain('WARN', 'Cannot forward item, display window unavailable');
+  }
 });
 ipcMain.on('display:black', () => {
-  if (displayWin) displayWin.webContents.send('display:black');
+  if (displayWin && !displayWin.isDestroyed()) displayWin.webContents.send('display:black');
 });
 ipcMain.on('display:unblack', () => {
-  if (displayWin) displayWin.webContents.send('display:unblack');
+  if (displayWin && !displayWin.isDestroyed()) displayWin.webContents.send('display:unblack');
 });
 ipcMain.on('display:pause', () => {
-  if (displayWin) displayWin.webContents.send('display:pause');
+  if (displayWin && !displayWin.isDestroyed()) displayWin.webContents.send('display:pause');
 });
 ipcMain.on('display:play', () => {
-  if (displayWin) displayWin.webContents.send('display:play');
+  if (displayWin && !displayWin.isDestroyed()) displayWin.webContents.send('display:play');
 });
 ipcMain.on('display:ended', () => {
-  if (controlWin) controlWin.webContents.send('display:ended');
+  if (controlWin && !controlWin.isDestroyed()) controlWin.webContents.send('display:ended');
+  logMain('INFO', 'Display reported playback ended');
 });
 ipcMain.on('display:error', (_evt, payload) => {
-  if (controlWin) controlWin.webContents.send('display:error', payload);
+  if (controlWin && !controlWin.isDestroyed()) controlWin.webContents.send('display:error', payload);
+  logMain('ERROR', 'Display error forwarded to control', payload);
 });

@@ -244,3 +244,67 @@ button:active {
   outline: 2px dashed #555;
   outline-offset: -8px;
 }
+
+.logger-card {
+  margin: 12px;
+  height: 220px;
+}
+
+.logger-card.collapsed {
+  height: 44px;
+}
+
+.logger-card.collapsed .logger-body {
+  display: none;
+}
+
+.logger-card header {
+  flex: 0 0 auto;
+}
+
+.logger-card .logger-body {
+  flex: 1;
+  overflow: auto;
+  background: #0a0a0a;
+  font-family: ui-monospace, Consolas, 'SFMono-Regular', monospace;
+  font-size: 12px;
+  padding: 8px;
+}
+
+.log-row {
+  display: grid;
+  grid-template-columns: 110px 85px 80px 1fr;
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px solid #151515;
+}
+
+.log-time {
+  color: #888;
+}
+
+.log-source {
+  color: #9aa;
+}
+
+.log-msg {
+  color: #ddd;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.log-level-INFO {
+  color: #cfe8ff;
+}
+
+.log-level-WARN {
+  color: #ffe8a6;
+}
+
+.log-level-ERROR {
+  color: #ffb4b4;
+}
+
+.log-actions button {
+  margin-left: 8px;
+}
