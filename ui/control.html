@@ -6,29 +6,41 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body class="control">
-  <header>
-    <h1>BF Presenter</h1>
-    <div class="controls">
-      <button id="btnAdd">Add Media</button>
-      <button id="btnPlay">Play</button>
-      <button id="btnPause">Pause</button>
-      <button id="btnPrev">Prev</button>
-      <button id="btnNext">Next</button>
-      <button id="btnBlack">Black</button>
-      <button id="btnUnblack">Un-Black</button>
+  <div class="control-root">
+    <div class="left-panel">
+      <div class="thumb-grid" id="thumbGrid"></div>
     </div>
-  </header>
 
-  <main>
-    <section class="playlist">
-      <ol id="playlist"></ol>
-    </section>
-    <section class="preview">
-      <div id="previewArea">Preview</div>
-    </section>
-  </main>
+    <div class="right-panel">
+      <section class="card preview-card">
+        <header>Preview</header>
+        <div class="preview-stage" id="previewArea"></div>
+      </section>
 
-  <div id="status" class="status" role="status" aria-live="polite"></div>
+      <section class="card nextup-card">
+        <header>
+          Next up
+          <div class="nextup-actions">
+            <button id="btnPlayNext">Play Next Up</button>
+            <button id="btnClearNext">Clear</button>
+          </div>
+        </header>
+        <div class="nextup-stage" id="nextUpArea">
+          <div class="nextup-placeholder">Click a thumbnail to stage it here.</div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <footer class="toolbar">
+    <button id="btnAdd">Add Media</button>
+    <button id="btnPlay">Play</button>
+    <button id="btnPause">Pause</button>
+    <button id="btnPrev">Prev</button>
+    <button id="btnNext">Next</button>
+    <button id="btnBlack">Black</button>
+    <button id="btnUnblack">Un-Black</button>
+  </footer>
 
   <script src="control.js" type="module"></script>
 </body>
