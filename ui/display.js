@@ -14,6 +14,8 @@ function logDisplay(level, msg, data = null) {
   logAPI.append(level, 'DISPLAY', safeMsg, data);
 }
 
+console.log('Display ready');
+
 (function tapConsole() {
   if (!logAPI?.append) return;
   const original = {
