@@ -15,6 +15,180 @@ const previewArea = document.getElementById('previewArea');
 const nextUpArea = document.getElementById('nextUpArea');
 const leftPanel = document.querySelector('.left-panel');
 
+const loggerBody = document.getElementById('loggerBody');
+const loggerCard = document.getElementById('loggerCard');
+const loggerCountEl = document.getElementById('loggerCount');
+const btnLogClear = document.getElementById('btnLogClear');
+const btnLogDownload = document.getElementById('btnLogDownload');
+const btnLogToggle = document.getElementById('btnLogToggle');
+const chkAutoscroll = document.getElementById('chkAutoscroll');
+const logAPI = window.presenterAPI?.log;
+
+const LOG_BUFFER_MAX = 1000;
+const logBuffer = [];
+
+function pad2(n) {
+  return n.toString().padStart(2, '0');
+}
+
+function tsString(ts) {
+  const d = new Date(ts);
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}.${d.getMilliseconds().toString().padStart(3, '0')}`;
+}
+
+function appendLog(entry) {
+  if (!entry || !loggerBody) return;
+  const { ts, level, source, msg, data } = entry;
+
+  const row = document.createElement('div');
+  row.className = `log-row log-level-${level}`;
+
+  const timeEl = document.createElement('div');
+  timeEl.className = 'log-time';
+  timeEl.textContent = tsString(ts);
+
+  const levelEl = document.createElement('div');
+  levelEl.textContent = level;
+
+  const sourceEl = document.createElement('div');
+  sourceEl.className = 'log-source';
+  sourceEl.textContent = source;
+
+  const messageEl = document.createElement('div');
+  messageEl.className = 'log-msg';
+  const baseMsg = typeof msg === 'string' ? msg : (() => { try { return JSON.stringify(msg); } catch { return String(msg); } })();
+  const extra = data !== undefined && data !== null ? (() => { try { return ` ${JSON.stringify(data)}`; } catch { return ` ${String(data)}`; } })() : '';
+  messageEl.textContent = `${baseMsg}${extra}`;
+
+  row.appendChild(timeEl);
+  row.appendChild(levelEl);
+  row.appendChild(sourceEl);
+  row.appendChild(messageEl);
+
+  loggerBody.appendChild(row);
+
+  logBuffer.push(entry);
+  if (logBuffer.length > LOG_BUFFER_MAX) {
+    logBuffer.shift();
+    if (loggerBody.firstChild) {
+      loggerBody.removeChild(loggerBody.firstChild);
+    }
+  }
+
+  if (loggerCountEl) {
+    loggerCountEl.textContent = `${logBuffer.length} entries`;
+  }
+
+  if (!chkAutoscroll || chkAutoscroll.checked) {
+    loggerBody.scrollTop = loggerBody.scrollHeight;
+  }
+}
+
+if (logAPI?.onAppend) {
+  logAPI.onAppend((payload) => appendLog(payload));
+}
+
+function logControl(level, msg, data = null) {
+  if (!logAPI?.append) return;
+  const safeMsg = typeof msg === 'undefined' ? '' : msg;
+  logAPI.append(level, 'CONTROL', safeMsg, data);
+}
+
+btnLogClear?.addEventListener('click', () => {
+  if (!loggerBody) return;
+  loggerBody.innerHTML = '';
+  logBuffer.length = 0;
+  if (loggerCountEl) {
+    loggerCountEl.textContent = '0 entries';
+  }
+});
+
+btnLogToggle?.addEventListener('click', () => {
+  if (!loggerCard) return;
+  const collapsed = loggerCard.classList.toggle('collapsed');
+  if (btnLogToggle) {
+    btnLogToggle.textContent = collapsed ? 'Expand' : 'Collapse';
+  }
+});
+
+btnLogDownload?.addEventListener('click', () => {
+  if (!logBuffer.length) return;
+  const lines = logBuffer.map((entry) => {
+    const { ts, source, level, msg, data } = entry;
+    const baseMsg = typeof msg === 'string' ? msg : (() => { try { return JSON.stringify(msg); } catch { return String(msg); } })();
+    const extra = data !== undefined && data !== null ? (() => { try { return ` ${JSON.stringify(data)}`; } catch { return ` ${String(data)}`; } })() : '';
+    return `${new Date(ts).toISOString()} [${source}/${level}] ${baseMsg}${extra}`;
+  });
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `bf-presenter-log-${Date.now()}.log`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+});
+
+if (chkAutoscroll) {
+  chkAutoscroll.addEventListener('change', () => {
+    if (chkAutoscroll.checked && loggerBody) {
+      loggerBody.scrollTop = loggerBody.scrollHeight;
+    }
+  });
+}
+
+(function tapConsole() {
+  if (!logAPI?.append) return;
+  const original = {
+    log: console.log,
+    warn: console.warn,
+    error: console.error
+  };
+
+  function toPayload(args) {
+    if (!args.length) return ['', null];
+    if (args.length === 1) return [args[0], null];
+    const [first, ...rest] = args;
+    return [first, rest.length === 1 ? rest[0] : rest];
+  }
+
+  console.log = (...args) => {
+    original.log(...args);
+    const [msg, data] = toPayload(args);
+    logControl('INFO', msg, data);
+  };
+
+  console.warn = (...args) => {
+    original.warn(...args);
+    const [msg, data] = toPayload(args);
+    logControl('WARN', msg, data);
+  };
+
+  console.error = (...args) => {
+    original.error(...args);
+    const [msg, data] = toPayload(args);
+    logControl('ERROR', msg, data);
+  };
+
+  window.addEventListener('error', (event) => {
+    logControl('ERROR', 'window.onerror', {
+      message: event.message,
+      filename: event.filename,
+      lineno: event.lineno,
+      colno: event.colno
+    });
+  });
+
+  window.addEventListener('unhandledrejection', (event) => {
+    logControl('ERROR', 'unhandledrejection', {
+      reason: (() => {
+        try { return JSON.stringify(event.reason); } catch { return String(event.reason); }
+      })()
+    });
+  });
+})();
+
 let media = [];
 let index = -1;
 let previewId = null;
@@ -165,6 +339,7 @@ function clearNextUp() {
   nextUpId = null;
   setNextUpPlaceholder();
   renderGrid();
+  logControl('INFO', 'Cleared next up item');
 }
 
 function stageNext(id) {
@@ -184,6 +359,7 @@ function stageNext(id) {
     btnSetImage.style.display = item.type === 'audio' ? 'inline-flex' : 'none';
   }
   renderGrid();
+  logControl('INFO', 'Staged next item', { id: item.id, type: item.type });
 }
 
 function cue(i) {
@@ -198,6 +374,7 @@ function cue(i) {
   previewId = item.id;
   renderPreview(item);
   renderGrid();
+  logControl('INFO', 'Cued item to preview', { id: item.id, type: item.type, index: i });
 }
 
 function pushToProgram() {
@@ -213,6 +390,8 @@ function pushToProgram() {
     displayImage: item.displayImage || null
   });
 
+  logControl('INFO', 'Push to Program', { id: item.id, type: item.type });
+
   if (nextUpId === item.id) {
     nextUpId = null;
     setNextUpPlaceholder();
@@ -225,10 +404,12 @@ function pushToProgram() {
 function play() {
   if (index < 0 || !media[index]) return;
   window.presenterAPI?.play();
+  logControl('INFO', 'Play requested');
 }
 
 function pause() {
   window.presenterAPI?.pause();
+  logControl('INFO', 'Pause requested');
 }
 
 function next() {
@@ -368,6 +549,8 @@ function addPathsToMedia(paths = []) {
   const hadPreview = Boolean(previewId);
   media = media.concat(items);
 
+  logControl('INFO', 'Added media items', { count: items.length });
+
   if (!hadPreview && media.length) {
     cue(0);
   } else {
@@ -397,6 +580,7 @@ droppableAreas.forEach((el) => {
 });
 
 window.presenterAPI?.onProgramEvent('display:ended', () => {
+  logControl('INFO', 'Display reported ended event');
   next();
 });
 

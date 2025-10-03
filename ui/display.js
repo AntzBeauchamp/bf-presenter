@@ -6,6 +6,65 @@ const errorBanner = document.getElementById('errorBanner');
 
 let currentItem = null;
 
+const logAPI = window.presenterAPI?.log;
+
+function logDisplay(level, msg, data = null) {
+  if (!logAPI?.append) return;
+  const safeMsg = typeof msg === 'undefined' ? '' : msg;
+  logAPI.append(level, 'DISPLAY', safeMsg, data);
+}
+
+(function tapConsole() {
+  if (!logAPI?.append) return;
+  const original = {
+    log: console.log,
+    warn: console.warn,
+    error: console.error
+  };
+
+  function toPayload(args) {
+    if (!args.length) return ['', null];
+    if (args.length === 1) return [args[0], null];
+    const [first, ...rest] = args;
+    return [first, rest.length === 1 ? rest[0] : rest];
+  }
+
+  console.log = (...args) => {
+    original.log(...args);
+    const [msg, data] = toPayload(args);
+    logDisplay('INFO', msg, data);
+  };
+
+  console.warn = (...args) => {
+    original.warn(...args);
+    const [msg, data] = toPayload(args);
+    logDisplay('WARN', msg, data);
+  };
+
+  console.error = (...args) => {
+    original.error(...args);
+    const [msg, data] = toPayload(args);
+    logDisplay('ERROR', msg, data);
+  };
+
+  window.addEventListener('error', (event) => {
+    logDisplay('ERROR', 'window.onerror', {
+      message: event.message,
+      filename: event.filename,
+      lineno: event.lineno,
+      colno: event.colno
+    });
+  });
+
+  window.addEventListener('unhandledrejection', (event) => {
+    logDisplay('ERROR', 'unhandledrejection', {
+      reason: (() => {
+        try { return JSON.stringify(event.reason); } catch { return String(event.reason); }
+      })()
+    });
+  });
+})();
+
 function fileURL(path) {
   try {
     return window.presenterAPI.toFileURL(path);

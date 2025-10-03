@@ -17,5 +17,18 @@ contextBridge.exposeInMainWorld('presenterAPI', {
     }
   },
   send: (channel, payload) => ipcRenderer.send(channel, payload),
-  onProgramEvent: (channel, cb) => ipcRenderer.on(channel, (_e, data) => cb(data))
+  onProgramEvent: (channel, cb) => ipcRenderer.on(channel, (_e, data) => cb(data)),
+  log: {
+    append: (level, source, msg, data = null) => {
+      ipcRenderer.send('log:append', {
+        ts: Date.now(),
+        level,
+        source,
+        msg,
+        data
+      });
+    },
+    onAppend: (cb) => ipcRenderer.on('log:append', (_e, payload) => cb(payload)),
+    download: () => ipcRenderer.invoke?.('log:download')
+  }
 });

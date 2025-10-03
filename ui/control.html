@@ -48,6 +48,24 @@
     <button id="btnUnblack">Un-Black</button>
   </footer>
 
+  <section class="card logger-card" id="loggerCard">
+    <header>
+      <div>
+        <strong>Logger</strong>
+        <span id="loggerCount" style="color:#888; margin-left:8px;">0 entries</span>
+      </div>
+      <div class="log-actions">
+        <label style="display:inline-flex; gap:6px; align-items:center;">
+          <input type="checkbox" id="chkAutoscroll" checked /> Autoscroll
+        </label>
+        <button id="btnLogClear">Clear</button>
+        <button id="btnLogDownload">Download</button>
+        <button id="btnLogToggle">Collapse</button>
+      </div>
+    </header>
+    <div class="logger-body" id="loggerBody"></div>
+  </section>
+
   <script src="control.js" type="module"></script>
 </body>
 </html>
