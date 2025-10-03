@@ -85,3 +85,9 @@ ipcMain.on('display:pause', () => {
 ipcMain.on('display:play', () => {
   if (displayWin) displayWin.webContents.send('display:play');
 });
+ipcMain.on('display:ended', () => {
+  if (controlWin) controlWin.webContents.send('display:ended');
+});
+ipcMain.on('display:error', (_evt, payload) => {
+  if (controlWin) controlWin.webContents.send('display:error', payload);
+});
