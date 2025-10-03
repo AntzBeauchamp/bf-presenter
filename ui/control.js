@@ -591,3 +591,7 @@ window.presenterAPI?.onProgramEvent('display:error', (payload = {}) => {
 
 setNextUpPlaceholder();
 renderGrid();
+
+if (logAPI?.append) {
+  logAPI.append('INFO', 'CONTROL', 'Logger initialized');
+}
