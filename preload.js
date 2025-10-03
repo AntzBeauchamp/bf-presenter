@@ -4,10 +4,10 @@ import { pathToFileURL } from 'url';
 contextBridge.exposeInMainWorld('presenterAPI', {
   pickMedia: (opts) => ipcRenderer.invoke('pick-media', opts || {}),
   showOnProgram: (item) => ipcRenderer.send('display:show-item', item),
+  play: () => ipcRenderer.send('display:play'),
+  pause: () => ipcRenderer.send('display:pause'),
   black: () => ipcRenderer.send('display:black'),
   unblack: () => ipcRenderer.send('display:unblack'),
-  pause: () => ipcRenderer.send('display:pause'),
-  play: () => ipcRenderer.send('display:play'),
   toFileURL: (absPath) => {
     try {
       return pathToFileURL(absPath).href;

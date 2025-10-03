@@ -204,17 +204,14 @@ function pushToProgram() {
   if (!previewId) return;
   const item = media.find((m) => m.id === previewId);
   if (!item) return;
-  const programIndex = media.findIndex((m) => m.id === previewId);
-  if (programIndex < 0) return;
+  index = media.findIndex((m) => m.id === previewId);
+  if (index < 0) return;
 
   window.presenterAPI?.showOnProgram({
     path: item.path,
     type: item.type,
-    name: item.name,
     displayImage: item.displayImage || null
   });
-
-  index = programIndex;
 
   if (nextUpId === item.id) {
     nextUpId = null;
