@@ -154,6 +154,12 @@ function showItem(item) {
   }
 }
 
+// --- LISTEN FOR PUSHED ITEMS FROM MAIN ---
+window.presenterAPI.onProgramEvent('display:show-item', (item) => {
+  console.log('Display received item:', item);
+  showItem(item);
+});
+
 function pauseMedia() {
   try { video.pause(); } catch (err) { console.warn('Video pause failed', err); }
   try { audio.pause(); } catch (err) { console.warn('Audio pause failed', err); }
@@ -168,8 +174,6 @@ function tryPlay(el, label) {
 
 video.onended = () => window.presenterAPI.send('display:ended');
 audio.onended = () => window.presenterAPI.send('display:ended');
-
-window.presenterAPI.onProgramEvent('display:show-item', (item) => showItem(item));
 window.presenterAPI.onProgramEvent('display:black', () => {
   pauseMedia();
   blackout?.classList.remove('hidden');

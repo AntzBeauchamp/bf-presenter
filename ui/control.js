@@ -24,12 +24,6 @@ const btnLogToggle = document.getElementById('btnLogToggle');
 const chkAutoscroll = document.getElementById('chkAutoscroll');
 const logAPI = window.presenterAPI?.log;
 
-if (window.presenterAPI?.log?.onAppend) {
-  window.presenterAPI.log.onAppend((payload) => {
-    appendLog(payload);
-  });
-}
-
 const LOG_BUFFER_MAX = 1000;
 const logBuffer = [];
 
@@ -91,6 +85,11 @@ function appendLog(entry) {
     loggerBody.scrollTop = loggerBody.scrollHeight;
   }
 }
+
+// --- LOGGER SUBSCRIPTION ---
+window.presenterAPI.log.onAppend((payload) => {
+  appendLog(payload);
+});
 
 if (logAPI?.append) {
   logAPI.append('INFO', 'CONTROL', 'Logger initialized test');
