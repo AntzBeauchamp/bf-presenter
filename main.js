@@ -23,7 +23,7 @@ function createWindows() {
     fullscreen: secondary.id !== primary.id,
     backgroundColor: '#000000',
     webPreferences: {
-      preload: path.join(process.cwd(), 'preload.js'),
+      preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true
     },
     autoHideMenuBar: true,
@@ -38,7 +38,7 @@ function createWindows() {
     height: 800,
     backgroundColor: '#111111',
     webPreferences: {
-      preload: path.join(process.cwd(), 'preload.js'),
+      preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true
     },
     autoHideMenuBar: true,

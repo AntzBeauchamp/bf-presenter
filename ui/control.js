@@ -13,6 +13,19 @@ const mainEl = document.querySelector('main');
 let playlist = []; // [{ path, type: 'video'|'audio'|'image', name }]
 let index = -1;
 
+const fileInput = document.createElement('input');
+fileInput.type = 'file';
+fileInput.multiple = true;
+fileInput.accept = '.mp4,.mov,.webm,.mp3,.wav,.m4a,.jpg,.jpeg,.png';
+fileInput.style.display = 'none';
+document.body.appendChild(fileInput);
+
+fileInput.addEventListener('change', () => {
+  const paths = [...fileInput.files].map((f) => f.path);
+  addPathsToPlaylist(paths);
+  fileInput.value = '';
+});
+
 function setStatus(message, isError = false) {
   if (!status) return;
   status.textContent = message || '';
@@ -29,13 +42,6 @@ function classify(filePath) {
   if (['mp3', 'wav', 'm4a'].includes(ext)) return 'audio';
   if (['jpg', 'jpeg', 'png'].includes(ext)) return 'image';
   return 'unknown';
-}
-
-function buildItem(filePath) {
-  const type = classify(filePath);
-  if (type === 'unknown') return null;
-  const name = filePath.split(/[\\/]/).pop() || filePath;
-  return { path: filePath, type, name };
 }
 
 function renderList() {
@@ -100,17 +106,14 @@ function cue(i) {
   }
 }
 
-function ensureCurrent() {
-  if (index === -1 && playlist.length) {
-    index = 0;
-    cue(index);
-  }
-}
-
 function addPathsToPlaylist(paths) {
   const items = paths
-    .map(buildItem)
-    .filter(Boolean);
+    .map((p) => ({
+      path: p,
+      type: classify(p),
+      name: p.split(/[\\/]/).pop() || p,
+    }))
+    .filter((item) => item.type !== 'unknown');
 
   if (!items.length) {
     setStatus('No supported media files found.', true);
@@ -118,9 +121,14 @@ function addPathsToPlaylist(paths) {
   }
 
   playlist = playlist.concat(items);
-  ensureCurrent();
-  renderList();
-  setStatus(`Added ${items.length} item${items.length === 1 ? '' : 's'} to playlist.`);
+
+  if (index === -1) {
+    index = 0;
+    cue(index);
+  } else {
+    renderList();
+    setStatus(`Added ${items.length} item${items.length === 1 ? '' : 's'} to playlist.`);
+  }
 }
 
 function play() {
@@ -153,19 +161,23 @@ function prev() {
   }
 }
 
-btnAdd.addEventListener('click', async () => {
+btnAdd.onclick = async () => {
   try {
-    const files = await window.presenterAPI.pickMedia();
-    if (!files || !files.length) {
-      setStatus('No files selected.');
-      return;
+    if (window.presenterAPI && typeof window.presenterAPI.pickMedia === 'function') {
+      const files = await window.presenterAPI.pickMedia();
+      if (files && files.length) {
+        addPathsToPlaylist(files);
+      } else {
+        fileInput.click();
+      }
+    } else {
+      fileInput.click();
     }
-    addPathsToPlaylist(files);
-  } catch (err) {
-    console.error('Add media failed', err);
-    setStatus('Unable to add media.', true);
+  } catch (e) {
+    console.error('Add Media via IPC failed, using fallback:', e);
+    fileInput.click();
   }
-});
+};
 
 btnPlay.addEventListener('click', () => play());
 btnPause.addEventListener('click', () => pause());
