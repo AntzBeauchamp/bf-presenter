@@ -286,15 +286,18 @@ function renderPreview(item) {
 
   if (item.type === 'image') {
     const img = document.createElement('img');
+    img.className = 'fit preview-media-fit';
     img.src = fileUrl(item.path);
     previewArea.appendChild(img);
   } else if (item.type === 'audio') {
     const audio = document.createElement('audio');
+    audio.className = 'preview-media-fit';
     audio.controls = true;
     audio.src = fileUrl(item.path);
     previewArea.appendChild(audio);
   } else {
     const video = document.createElement('video');
+    video.className = 'fit preview-media-fit';
     video.controls = true;
     video.playsInline = true;
     video.src = fileUrl(item.path);
