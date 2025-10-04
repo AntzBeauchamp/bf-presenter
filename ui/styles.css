@@ -51,6 +51,10 @@ button:active {
   display: grid;
   grid-template-rows: 1fr 0.8fr;
   gap: 16px;
+  min-height: 0;
+}
+.right-panel > .card {
+  min-height: 0;
 }
 
 .card {
@@ -60,6 +64,10 @@ button:active {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+}
+.preview-card {
+  min-height: 0;
 }
 
 .card > header {
@@ -87,11 +95,30 @@ button:active {
   justify-content: center;
   background: #000;
 }
+.preview-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  background: #000;
+  overflow: hidden;
+  min-height: 0;
+}
 
-.preview-stage img,
-.preview-stage video {
+.preview-stage .fit,
+.preview-media-fit {
   max-width: 100%;
   max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  object-position: center center;
+  display: block;
+}
+.preview-stage video.fit::-webkit-media-controls-enclosure {
+  max-width: 100%;
 }
 
 .nextup-placeholder {
