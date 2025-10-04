@@ -30,6 +30,7 @@ const LOG_BUFFER_MAX = 1000;
 
 let media = [];
 let previewId = null;
+let programId = null;
 let nextUpId = null;
 let index = -1;
 const logBuffer = [];
@@ -221,6 +222,9 @@ function buildThumb(item, { interactive = true } = {}) {
   if (item.id === nextUpId) {
     container.classList.add('staged');
   }
+  if (item.id === programId) {
+    container.classList.add('program');
+  }
 
   if (interactive) {
     container.addEventListener('click', () => {
@@ -229,7 +233,6 @@ function buildThumb(item, { interactive = true } = {}) {
 
     container.addEventListener('dblclick', () => {
       previewItem(item.id);
-      pushToProgram();
     });
   } else {
     container.classList.add('readonly');
@@ -320,27 +323,30 @@ function previewItem(id) {
   renderMediaGrid();
 }
 
-function pushToProgram() {
+function pushPreviewToDisplay() {
   if (!previewId) return;
   const item = media.find((entry) => entry.id === previewId);
   if (!item) return;
+  if (!window.presenterAPI?.showOnProgram) return;
+
+  programId = previewId;
   index = media.findIndex((entry) => entry.id === previewId);
   window.presenterAPI.showOnProgram({
     path: item.path,
     type: item.type,
     displayImage: item.displayImage || null
   });
-  window.presenterAPI.play();
+  window.presenterAPI.play?.();
+  renderMediaGrid();
 }
 
 btnPush?.addEventListener('click', () => {
-  pushToProgram();
+  pushPreviewToDisplay();
 });
 
 btnPlayNext?.addEventListener('click', () => {
   if (!nextUpId) return;
   previewItem(nextUpId);
-  pushToProgram();
 });
 
 btnClearNext?.addEventListener('click', () => {
@@ -454,13 +460,9 @@ setupDropTarget(nextUpArea, (paths) => {
 });
 
 window.presenterAPI?.onProgramEvent?.('display:ended', () => {
-  if (!media.length) return;
-  const currentIndex = media.findIndex((item) => item.id === previewId);
-  if (currentIndex >= 0 && currentIndex + 1 < media.length) {
-    const nextItem = media[currentIndex + 1];
-    stageNext(nextItem.id);
-    previewItem(nextItem.id);
-  }
+  if (!previewId) return;
+  if (previewId === programId) return;
+  pushPreviewToDisplay();
 });
 
 renderNextUp(null);

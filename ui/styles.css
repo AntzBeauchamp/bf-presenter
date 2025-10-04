@@ -134,6 +134,9 @@ button:active {
 .thumb.staged {
   border-color: #3a86ff;
 }
+.thumb.program {
+  box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.55) inset;
+}
 
 .thumb.readonly {
   cursor: default;
