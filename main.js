@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, screen } from 'electron';
 import path from 'path';
 import fs from 'fs';
+import http from 'http';
 import { fileURLToPath } from 'url';
 
 // Store app data next to the executable (true portable mode)
@@ -8,6 +9,63 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 app.setPath('userData', path.join(__dirname, 'userdata'));
 
 let controlWin, displayWin;
+let fileServerPort = null;
+
+function encodePathForUrl(p) {
+  return Buffer.from(p, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function decodePathFromUrl(id) {
+  let b = id.replace(/-/g, '+').replace(/_/g, '/');
+  const pad = b.length % 4;
+  if (pad) b += '='.repeat(4 - pad);
+  return Buffer.from(b, 'base64').toString('utf8');
+}
+
+function startFileServer() {
+  return new Promise((resolve, reject) => {
+    const server = http.createServer((req, res) => {
+      try {
+        const m = req.url.match(/^\/file\/([A-Za-z0-9_-]+)$/);
+        if (!m) {
+          res.statusCode = 404;
+          res.end('Not found');
+          return;
+        }
+        const p = decodePathFromUrl(m[1]);
+        if (!fs.existsSync(p)) {
+          res.statusCode = 404;
+          res.end('Not found');
+          return;
+        }
+        const ext = path.extname(p).slice(1).toLowerCase();
+        const map = {
+          jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+          mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
+          mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4'
+        };
+        const ct = map[ext] || 'application/octet-stream';
+        res.setHeader('Content-Type', ct);
+        const stream = fs.createReadStream(p);
+        stream.on('error', (err) => {
+          res.statusCode = 500;
+          res.end('Server error');
+        });
+        stream.pipe(res);
+      } catch (err) {
+        res.statusCode = 500;
+        res.end('Server error');
+      }
+    });
+
+    server.listen(0, '127.0.0.1', () => {
+      fileServerPort = server.address().port;
+      logMain('INFO', 'File server listening', { port: fileServerPort });
+      resolve();
+    });
+    server.on('error', (err) => reject(err));
+  });
+}
 
 function sendLogToControl(payload) {
   if (controlWin && !controlWin.isDestroyed() && controlWin.webContents) {
@@ -99,7 +157,12 @@ function createWindows() {
   controlWin.on('closed', () => { controlWin = null; if (displayWin) displayWin.close(); });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  try {
+    await startFileServer();
+  } catch (err) {
+    console.warn('Failed to start file server', err);
+  }
   createWindows();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindows(); });
 });
@@ -122,12 +185,21 @@ ipcMain.handle('pick-media', async (_evt, opts = {}) => {
 });
 
 ipcMain.on('display:show-item', (_evt, item) => {
-  console.log('MAIN: forwarding to display', item);
-  if (displayWin && !displayWin.isDestroyed()) {
-    displayWin.webContents.send('display:show-item', item);
-    logMain('INFO', 'Forwarded item to display', { type: item?.type || 'unknown' });
-  } else {
-    logMain('WARN', 'Cannot forward item, display window unavailable');
+  try {
+    console.log('MAIN: forwarding to display', item);
+    const forwarded = { ...item };
+    // If file server is running, convert local paths to http URLs
+    if (fileServerPort && item?.path) {
+      forwarded.url = `http://127.0.0.1:${fileServerPort}/file/${encodePathForUrl(item.path)}`;
+    }
+    if (displayWin && !displayWin.isDestroyed()) {
+      displayWin.webContents.send('display:show-item', forwarded);
+      logMain('INFO', 'Forwarded item to display', { type: item?.type || 'unknown' });
+    } else {
+      logMain('WARN', 'Cannot forward item, display window unavailable');
+    }
+  } catch (err) {
+    logMain('ERROR', 'Error forwarding item to display', String(err));
   }
 });
 ipcMain.on('display:black', () => {

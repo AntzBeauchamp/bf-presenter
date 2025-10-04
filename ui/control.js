@@ -35,9 +35,21 @@ let index = -1;
 const logBuffer = [];
 
 function fileUrl(p) {
-  return window.presenterAPI && typeof window.presenterAPI.toFileURL === 'function'
-    ? window.presenterAPI.toFileURL(p)
-    : `file://${p}`;
+  try {
+    if (window.presenterAPI && typeof window.presenterAPI.toFileURL === 'function') {
+      return window.presenterAPI.toFileURL(p);
+    }
+  } catch (err) {
+    console.warn('presenterAPI.toFileURL failed, falling back to file://', err);
+  }
+  // Fallback: normalize Windows path to file:///C:/...
+  try {
+    const normalized = p.replace(/\\/g, '/');
+    if (!normalized.startsWith('/')) return `file:///${normalized}`;
+    return `file://${normalized}`;
+  } catch (err) {
+    return `file://${p}`;
+  }
 }
 
 function pad2(n) {

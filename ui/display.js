@@ -103,6 +103,23 @@ function notifyError(message, err) {
   window.presenterAPI.send('display:error', { message, item: currentItem });
 }
 
+function safeToFileURL(p) {
+  try {
+    if (window.presenterAPI && typeof window.presenterAPI.toFileURL === 'function') {
+      return window.presenterAPI.toFileURL(p);
+    }
+  } catch (err) {
+    console.warn('presenterAPI.toFileURL failed in display, falling back', err);
+  }
+  try {
+    const normalized = p.replace(/\\/g, '/');
+    if (!normalized.startsWith('/')) return `file:///${normalized}`;
+    return `file://${normalized}`;
+  } catch (err) {
+    return `file://${p}`;
+  }
+}
+
 function showItem(item) {
   console.log('DISPLAY: showItem called with', item);
   console.log('Display got item:', item);
@@ -116,19 +133,19 @@ function showItem(item) {
   }
 
   if (item.type === 'image') {
-    img.onerror = (e) => notifyError('Unable to load image.', e);
-    img.src = window.presenterAPI.toFileURL(item.path);
+  img.onerror = (e) => notifyError('Unable to load image.', e);
+  img.src = item.url ? item.url : safeToFileURL(item.path);
     img.classList.remove('hidden');
     blackout.classList.add('hidden');
 
   } else if (item.type === 'audio') {
-    audio.onerror = (e) => notifyError('Unable to load audio.', e);
-    audio.src = window.presenterAPI.toFileURL(item.path);
+  audio.onerror = (e) => notifyError('Unable to load audio.', e);
+  audio.src = item.url ? item.url : safeToFileURL(item.path);
     audio.classList.remove('hidden');
 
     if (item.displayImage) {
-      img.onerror = (e) => notifyError('Unable to load display image.', e);
-      img.src = window.presenterAPI.toFileURL(item.displayImage);
+  img.onerror = (e) => notifyError('Unable to load display image.', e);
+  img.src = item.displayImage && item.displayImage.startsWith('http') ? item.displayImage : safeToFileURL(item.displayImage);
       img.classList.remove('hidden');
       blackout.classList.add('hidden');
     } else {
@@ -136,8 +153,8 @@ function showItem(item) {
     }
 
   } else if (item.type === 'video') {
-    video.onerror = (e) => notifyError('Unable to load video.', e);
-    video.src = window.presenterAPI.toFileURL(item.path);
+  video.onerror = (e) => notifyError('Unable to load video.', e);
+  video.src = item.url ? item.url : safeToFileURL(item.path);
     video.setAttribute('playsinline', '');
     video.classList.remove('hidden');
     blackout.classList.add('hidden');
