@@ -187,21 +187,35 @@ function addPathsToMedia(paths = []) {
   }
 }
 
+function getThumbSrcForItem(item) {
+  if (!item) return '';
+  if (item.displayImage && item.type === 'audio') {
+    return fileUrl(item.displayImage);
+  }
+  if (item.type === 'image') {
+    return fileUrl(item.path);
+  }
+  if (item.type === 'video') {
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" rx="6" fill="#191919"/><polygon points="20,16 34,24 20,32" fill="#6ec1ff"/></svg>');
+  }
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" rx="6" fill="#191919"/><circle cx="16" cy="16" r="6" fill="#9be7ff"/><path d="M8 38l10-12 8 9 6-8 8 11H8z" fill="#6ec1ff"/></svg>');
+}
+
+function updateThumbnailWithDisplayImage(item) {
+  if (!item) return;
+  const thumb = grid?.querySelector(`[data-id="${item.id}"] img`);
+  if (thumb) {
+    thumb.src = getThumbSrcForItem(item);
+  }
+}
+
 function buildThumb(item, { interactive = true } = {}) {
   const container = document.createElement('div');
   container.className = 'thumb';
   container.dataset.id = item.id;
 
   const img = document.createElement('img');
-  if (item.type === 'image') {
-    img.src = fileUrl(item.path);
-  } else if (item.type === 'audio' && item.displayImage) {
-    img.src = fileUrl(item.displayImage);
-  } else if (item.type === 'video') {
-    img.src = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" rx="6" fill="#191919"/><polygon points="20,16 34,24 20,32" fill="#6ec1ff"/></svg>');
-  } else {
-    img.src = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" rx="6" fill="#191919"/><circle cx="16" cy="16" r="6" fill="#9be7ff"/><path d="M8 38l10-12 8 9 6-8 8 11H8z" fill="#6ec1ff"/></svg>');
-  }
+  img.src = getThumbSrcForItem(item);
   container.appendChild(img);
 
   const meta = document.createElement('div');
@@ -290,6 +304,12 @@ function renderPreview(item) {
     img.src = fileUrl(item.path);
     previewArea.appendChild(img);
   } else if (item.type === 'audio') {
+    if (item.displayImage) {
+      const img = document.createElement('img');
+      img.className = 'fit preview-media-fit';
+      img.src = fileUrl(item.displayImage);
+      previewArea.appendChild(img);
+    }
     const audio = document.createElement('audio');
     audio.className = 'preview-media-fit';
     audio.controls = true;
@@ -347,6 +367,30 @@ btnPush?.addEventListener('click', () => {
   pushPreviewToDisplay();
 });
 
+if (btnSetImage) {
+  btnSetImage.onclick = async () => {
+    if (!nextUpId) return;
+    const item = media.find((m) => m.id === nextUpId);
+    if (!item || item.type !== 'audio') return;
+    if (typeof window.presenterAPI?.pickImage !== 'function') return;
+
+    try {
+      const imgPath = await window.presenterAPI.pickImage();
+      if (!imgPath) return;
+
+      item.displayImage = imgPath;
+      updateThumbnailWithDisplayImage(item);
+      renderNextUp(item);
+      if (previewId === item.id) {
+        renderPreview(item);
+      }
+      console.log('Attached display image', imgPath, 'to', item.name);
+    } catch (err) {
+      console.error('Set Display Image failed:', err);
+    }
+  };
+}
+
 btnPlayNext?.addEventListener('click', () => {
   if (!nextUpId) return;
   previewItem(nextUpId);
@@ -364,23 +408,6 @@ btnNext?.addEventListener('click', () => window.presenterAPI?.next?.());
 btnPrev?.addEventListener('click', () => window.presenterAPI?.prev?.());
 btnBlack?.addEventListener('click', () => window.presenterAPI?.black?.());
 btnUnblack?.addEventListener('click', () => window.presenterAPI?.unblack?.());
-
-btnSetImage?.addEventListener('click', async () => {
-  if (!nextUpId) return;
-  const target = media.find((entry) => entry.id === nextUpId);
-  if (!target) return;
-  if (!window.presenterAPI?.pickImage) return;
-  try {
-    const result = await window.presenterAPI.pickImage();
-    if (result) {
-      target.displayImage = result;
-      renderNextUp(target);
-      renderMediaGrid();
-    }
-  } catch (err) {
-    console.error('Failed to pick display image', err);
-  }
-});
 
 const fileInput = document.createElement('input');
 fileInput.type = 'file';

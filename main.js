@@ -184,6 +184,16 @@ ipcMain.handle('pick-media', async (_evt, opts = {}) => {
   return filePaths.filter(p => fs.existsSync(p));
 });
 
+ipcMain.handle('pick-image', async () => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    filters: [
+      { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }
+    ]
+  });
+  return result;
+});
+
 ipcMain.on('display:show-item', (_evt, item) => {
   try {
     console.log('MAIN: forwarding to display', item);

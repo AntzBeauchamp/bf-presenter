@@ -154,7 +154,7 @@ function notifyError(message, err) {
   window.presenterAPI.send('display:error', { message, item: reportedItem });
 }
 
-function safeToFileURL(p) {
+function fileUrl(p) {
   try {
     if (window.presenterAPI && typeof window.presenterAPI.toFileURL === 'function') {
       return window.presenterAPI.toFileURL(p);
@@ -173,7 +173,7 @@ function safeToFileURL(p) {
 
 function prepareImage(layer, item) {
   if (!layer?.img || !item) return false;
-  const src = item.url ? item.url : (item.path ? safeToFileURL(item.path) : null);
+  const src = item.url ? item.url : (item.path ? fileUrl(item.path) : null);
   if (!src) return false;
   layer.img.onerror = (e) => notifyError('Unable to load image.', e);
   layer.img.src = src;
@@ -183,7 +183,7 @@ function prepareImage(layer, item) {
 
 function prepareVideo(layer, item) {
   if (!layer?.video || !item) return false;
-  const src = item.url ? item.url : (item.path ? safeToFileURL(item.path) : null);
+  const src = item.url ? item.url : (item.path ? fileUrl(item.path) : null);
   if (!src) return false;
   layer.video.onerror = (e) => notifyError('Unable to load video.', e);
   layer.video.src = src;
@@ -191,15 +191,6 @@ function prepareVideo(layer, item) {
   layer.video.setAttribute('playsinline', '');
   layer.video.classList.add('show');
   return true;
-}
-
-function prepareAudio(item) {
-  if (!audioEl || !item) return;
-  const src = item.url ? item.url : (item.path ? safeToFileURL(item.path) : null);
-  if (!src) return;
-  audioEl.onerror = (e) => notifyError('Unable to load audio.', e);
-  audioEl.src = src;
-  try { audioEl.load(); } catch (err) { console.warn('Audio load failed', err); }
 }
 
 function showItem(item) {
@@ -233,18 +224,22 @@ function showItem(item) {
     willShowVisual = prepareVideo(incoming, item);
     blackout?.classList.add('hidden');
   } else if (item.type === 'audio') {
-    prepareAudio(item);
-    if (item.displayImage) {
-      willShowVisual = prepareImage(incoming, {
-        ...item,
-        path: item.displayImage,
-        url: item.displayImage && item.displayImage.startsWith('http') ? item.displayImage : null
-      });
-      if (willShowVisual) {
-        blackout?.classList.add('hidden');
-      }
+    const audioSrc = item.url ? item.url : (item.path ? fileUrl(item.path) : null);
+    if (audioSrc) {
+      audioEl.onerror = (e) => notifyError('Unable to load audio.', e);
+      audioEl.src = audioSrc;
+      try { audioEl.load(); } catch (err) { console.warn('Audio load failed', err); }
     }
-    if (!item.displayImage) {
+
+    if (item.displayImage && incoming?.img) {
+      const imageSrc = item.displayImage.startsWith('http') ? item.displayImage : fileUrl(item.displayImage);
+      incoming.img.onerror = (e) => notifyError('Unable to load image.', e);
+      incoming.img.src = imageSrc;
+      incoming.img.classList.add('show');
+      willShowVisual = true;
+      blackout?.classList.add('hidden');
+    } else {
+      willShowVisual = false;
       blackout?.classList.remove('hidden');
     }
   } else {
