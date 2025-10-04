@@ -1,0 +1,4 @@
+root: C:\Users\anthony\Documents\GitHub\bf-presenter 
+path: C:\Program Files\nodejs 
+arch: 64 
+proxy: none

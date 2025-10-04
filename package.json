@@ -9,8 +9,8 @@
     "dist:win:x64": "electron-builder --win nsis"
   },
   "devDependencies": {
-    "electron": "^31.0.0",
-    "electron-builder": "^24.13.3"
+    "electron": "^38.2.1",
+    "electron-builder": "26.0.12"
   },
   "build": {
     "appId": "nz.bfh.presenter",
