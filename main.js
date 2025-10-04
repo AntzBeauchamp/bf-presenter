@@ -4,32 +4,25 @@ import fs from 'fs';
 import http from 'http';
 import { fileURLToPath } from 'url';
 
-// Helper to resolve preload path in dev and production
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Helper to resolve preload path in dev and production (inside asar)
 function resolvePreload() {
   const candidates = [
-    // packaged app.asar root (if copied there)
+    // packaged: app.asar root
     path.join(__dirname, 'preload.cjs'),
-    // common emitted locations
+    // dev/build fallbacks
     path.join(__dirname, 'dist-electron', 'preload.cjs'),
     path.join(__dirname, '..', 'dist-electron', 'preload.cjs'),
-    // if explicitly unpacked
-    path.join(process.resourcesPath, 'app.asar.unpacked', 'preload.cjs'),
-    // dev fallback (repo root)
     path.join(process.cwd(), 'dist-electron', 'preload.cjs'),
   ];
   for (const p of candidates) {
     try { if (fs.existsSync(p)) return p; } catch {}
   }
-  // Fallback: prefer a preload.cjs next to __dirname if present, else return a path that may be packaged.
-  const fallback = path.join(__dirname, 'preload.cjs');
-  if (fs.existsSync(fallback)) return fallback;
-  // Don't throw here to avoid crashing packaged app during startup; log and return fallback path.
-  console.warn('resolvePreload: preload not found in known locations, returning fallback path:', fallback);
-  return fallback;
+  throw new Error('Preload script not found in any known location');
 }
 
 // Store app data next to the executable (true portable mode)
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 app.setPath('userData', path.join(__dirname, 'userdata'));
 
 let controlWin, displayWin;

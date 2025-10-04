@@ -16,20 +16,13 @@
     "appId": "nz.bfh.presenter",
     "productName": "BF Presenter",
     "files": [
-      "dist/**/*",
-      "dist-electron/**/*",
+      "dist/**",
+      "dist-electron/**",
       "main.js",
       "preload.js",
       "preload.cjs",
-      "ui/**/*",
-      "package.json",
       "ui/**",
-      "dist/**",
-      "dist-electron/**"
-    ],
-    "asarUnpack": [
-      "dist-electron/preload.cjs",
-      "preload.cjs"
+      "package.json"
     ],
     "directories": {
       "buildResources": "build"
