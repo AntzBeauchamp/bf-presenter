@@ -1,10 +1,17 @@
-const img = document.getElementById('img');
-const video = document.getElementById('video');
-const audio = document.getElementById('audio');
+const layerA = document.getElementById('layerA');
+const layerB = document.getElementById('layerB');
+const imgA = document.getElementById('imgA');
+const imgB = document.getElementById('imgB');
+const videoA = document.getElementById('videoA');
+const videoB = document.getElementById('videoB');
+const audioEl = document.getElementById('audioEl');
 const blackout = document.getElementById('blackout');
 const errorBanner = document.getElementById('errorBanner');
 
+let activeLayerKey = 'A';
 let currentItem = null;
+let currentType = null;
+let swapTimer = null;
 
 const logAPI = window.presenterAPI?.log;
 
@@ -67,22 +74,65 @@ console.log('Display ready');
   });
 })();
 
+function getLayerElements(key) {
+  return key === 'A'
+    ? { layer: layerA, img: imgA, video: videoA }
+    : { layer: layerB, img: imgB, video: videoB };
+}
+
+function getActiveLayer() {
+  return getLayerElements(activeLayerKey);
+}
+
+function resetSwapTimer() {
+  if (swapTimer) {
+    clearTimeout(swapTimer);
+    swapTimer = null;
+  }
+}
+
+function stopLayerPlayback(layer) {
+  if (!layer) return;
+  try { layer.video.pause(); } catch (err) { console.warn('Pause failed', err); }
+}
+
+function clearLayerContent(layer) {
+  if (!layer) return;
+  if (layer.video) {
+    layer.video.onerror = null;
+    try { layer.video.pause(); } catch {}
+    layer.video.removeAttribute('src');
+    try { layer.video.load(); } catch (err) { console.warn('Video load reset failed', err); }
+    layer.video.classList.remove('show');
+  }
+  if (layer.img) {
+    layer.img.onerror = null;
+    layer.img.removeAttribute('src');
+    layer.img.classList.remove('show');
+  }
+}
+
+function hideAllVisuals() {
+  clearLayerContent(getLayerElements('A'));
+  clearLayerContent(getLayerElements('B'));
+  layerA?.classList.remove('visible');
+  layerB?.classList.remove('visible');
+}
+
+function stopAudio() {
+  if (!audioEl) return;
+  audioEl.onerror = null;
+  try { audioEl.pause(); } catch (err) { console.warn('Audio pause failed', err); }
+  audioEl.removeAttribute('src');
+  try { audioEl.load(); } catch (err) { console.warn('Audio load reset failed', err); }
+}
+
 function hideAll() {
-  [img, video, audio].forEach((el) => {
-    if (!el) return;
-    el.onerror = null;
-    if (el.tagName === 'VIDEO' || el.tagName === 'AUDIO') {
-      try { el.pause(); } catch (err) { console.warn('Pause failed', err); }
-      el.removeAttribute('src');
-      if (typeof el.load === 'function') {
-        try { el.load(); } catch (err) { console.warn('Load reset failed', err); }
-      }
-    }
-    if (el.tagName === 'IMG') {
-      el.removeAttribute('src');
-    }
-    el.classList.add('hidden');
-  });
+  resetSwapTimer();
+  hideAllVisuals();
+  stopAudio();
+  currentItem = null;
+  currentType = null;
 }
 
 function clearError() {
@@ -94,13 +144,14 @@ function clearError() {
 
 function notifyError(message, err) {
   console.error(message, err);
+  const reportedItem = currentItem;
   hideAll();
   blackout?.classList.remove('hidden');
   if (errorBanner) {
     errorBanner.textContent = message;
     errorBanner.classList.remove('hidden');
   }
-  window.presenterAPI.send('display:error', { message, item: currentItem });
+  window.presenterAPI.send('display:error', { message, item: reportedItem });
 }
 
 function safeToFileURL(p) {
@@ -120,89 +171,154 @@ function safeToFileURL(p) {
   }
 }
 
+function prepareImage(layer, item) {
+  if (!layer?.img || !item) return false;
+  const src = item.url ? item.url : (item.path ? safeToFileURL(item.path) : null);
+  if (!src) return false;
+  layer.img.onerror = (e) => notifyError('Unable to load image.', e);
+  layer.img.src = src;
+  layer.img.classList.add('show');
+  return true;
+}
+
+function prepareVideo(layer, item) {
+  if (!layer?.video || !item) return false;
+  const src = item.url ? item.url : (item.path ? safeToFileURL(item.path) : null);
+  if (!src) return false;
+  layer.video.onerror = (e) => notifyError('Unable to load video.', e);
+  layer.video.src = src;
+  layer.video.preload = 'auto';
+  layer.video.setAttribute('playsinline', '');
+  layer.video.classList.add('show');
+  return true;
+}
+
+function prepareAudio(item) {
+  if (!audioEl || !item) return;
+  const src = item.url ? item.url : (item.path ? safeToFileURL(item.path) : null);
+  if (!src) return;
+  audioEl.onerror = (e) => notifyError('Unable to load audio.', e);
+  audioEl.src = src;
+  try { audioEl.load(); } catch (err) { console.warn('Audio load failed', err); }
+}
+
 function showItem(item) {
-  console.log('DISPLAY: showItem called with', item);
-  console.log('Display got item:', item);
+  console.log('Display received item', item);
   currentItem = item || null;
+  currentType = item?.type || null;
   clearError();
-  hideAll();
+  resetSwapTimer();
 
   if (!item) {
-    blackout.classList.remove('hidden');
+    hideAll();
+    blackout?.classList.remove('hidden');
     return;
   }
 
+  const outgoingKey = activeLayerKey;
+  const outgoing = getLayerElements(outgoingKey);
+  const incomingKey = outgoingKey === 'A' ? 'B' : 'A';
+  const incoming = getLayerElements(incomingKey);
+
+  stopLayerPlayback(outgoing);
+  stopAudio();
+  clearLayerContent(incoming);
+
+  let willShowVisual = false;
+
   if (item.type === 'image') {
-    img.onerror = (e) => notifyError('Unable to load image.', e);
-    img.src = item.url ? item.url : safeToFileURL(item.path);
-    img.classList.remove('hidden');
-    blackout.classList.add('hidden');
-
-  } else if (item.type === 'audio') {
-    audio.onerror = (e) => notifyError('Unable to load audio.', e);
-    audio.src = item.url ? item.url : safeToFileURL(item.path);
-    audio.classList.remove('hidden');
-
-    if (item.displayImage) {
-      img.onerror = (e) => notifyError('Unable to load display image.', e);
-      img.src = item.displayImage && item.displayImage.startsWith('http') ? item.displayImage : safeToFileURL(item.displayImage);
-      img.classList.remove('hidden');
-      blackout.classList.add('hidden');
-    } else {
-      blackout.classList.remove('hidden');
-    }
-
+    willShowVisual = prepareImage(incoming, item);
+    blackout?.classList.add('hidden');
   } else if (item.type === 'video') {
-    video.onerror = (e) => notifyError('Unable to load video.', e);
-    video.src = item.url ? item.url : safeToFileURL(item.path);
-    video.setAttribute('playsinline', '');
-    video.classList.remove('hidden');
-    blackout.classList.add('hidden');
+    willShowVisual = prepareVideo(incoming, item);
+    blackout?.classList.add('hidden');
+  } else if (item.type === 'audio') {
+    prepareAudio(item);
+    if (item.displayImage) {
+      willShowVisual = prepareImage(incoming, {
+        ...item,
+        path: item.displayImage,
+        url: item.displayImage && item.displayImage.startsWith('http') ? item.displayImage : null
+      });
+      if (willShowVisual) {
+        blackout?.classList.add('hidden');
+      }
+    }
+    if (!item.displayImage) {
+      blackout?.classList.remove('hidden');
+    }
   } else {
     notifyError('Unsupported media type.', new Error(item.type));
+    return;
+  }
+
+  activeLayerKey = incomingKey;
+
+  if (willShowVisual) {
+    incoming.layer.classList.add('visible');
+    outgoing.layer.classList.remove('visible');
+
+    swapTimer = window.setTimeout(() => {
+      clearLayerContent(outgoing);
+      swapTimer = null;
+    }, 1000);
+  } else {
+    incoming.layer.classList.remove('visible');
+    outgoing.layer.classList.remove('visible');
+    clearLayerContent(outgoing);
+    clearLayerContent(incoming);
   }
 }
 
-// --- LISTEN FOR PUSHED ITEMS FROM MAIN ---
+function playCurrent() {
+  const { video } = getActiveLayer();
+  if (currentType === 'video' && video.classList.contains('show')) {
+    video.play().catch((err) => {
+      notifyError('Unable to play video.', err);
+    });
+  } else if (currentType === 'audio' && audioEl.src) {
+    audioEl.play().catch((err) => {
+      notifyError('Unable to play audio.', err);
+    });
+  }
+}
+
+function pauseCurrent() {
+  const { video } = getLayerElements('A');
+  const { video: videoBEl } = getLayerElements('B');
+  [video, videoBEl].forEach((vid) => {
+    try { vid.pause(); } catch (err) { console.warn('Video pause failed', err); }
+  });
+  try { audioEl.pause(); } catch (err) { console.warn('Audio pause failed', err); }
+}
+
+function wireEndedHandlers() {
+  const onEnded = () => {
+    window.presenterAPI.send('display:ended');
+  };
+  videoA.onended = onEnded;
+  videoB.onended = onEnded;
+  audioEl.onended = onEnded;
+}
+wireEndedHandlers();
+
 window.presenterAPI.onProgramEvent('display:show-item', (item) => {
-  console.log('DISPLAY: received item', item);
-  console.log('Display received item:', item);
   showItem(item);
 });
 
-function pauseMedia() {
-  try { video.pause(); } catch (err) { console.warn('Video pause failed', err); }
-  try { audio.pause(); } catch (err) { console.warn('Audio pause failed', err); }
-}
-
-function tryPlay(el, label) {
-  if (el.classList.contains('hidden')) return;
-  el.play().catch((err) => {
-    notifyError(`Unable to play ${label}.`, err);
-  });
-}
-
-video?.addEventListener('ended', () => {
-  window.presenterAPI.send('display:ended');
+window.presenterAPI.onProgramEvent('display:play', () => {
+  playCurrent();
 });
-audio?.addEventListener('ended', () => {
-  window.presenterAPI.send('display:ended');
+
+window.presenterAPI.onProgramEvent('display:pause', () => {
+  pauseCurrent();
 });
+
 window.presenterAPI.onProgramEvent('display:black', () => {
-  pauseMedia();
+  pauseCurrent();
   blackout?.classList.remove('hidden');
 });
+
 window.presenterAPI.onProgramEvent('display:unblack', () => {
   blackout?.classList.add('hidden');
-});
-window.presenterAPI.onProgramEvent('display:pause', () => {
-  pauseMedia();
-});
-window.presenterAPI.onProgramEvent('display:play', () => {
-  if (!video.classList.contains('hidden')) {
-    tryPlay(video, 'video');
-  }
-  if (!audio.classList.contains('hidden')) {
-    tryPlay(audio, 'audio');
-  }
 });
