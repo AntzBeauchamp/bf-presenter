@@ -4,6 +4,30 @@ import fs from 'fs';
 import http from 'http';
 import { fileURLToPath } from 'url';
 
+// Helper to resolve preload path in dev and production
+function resolvePreload() {
+  const candidates = [
+    // packaged app.asar root (if copied there)
+    path.join(__dirname, 'preload.cjs'),
+    // common emitted locations
+    path.join(__dirname, 'dist-electron', 'preload.cjs'),
+    path.join(__dirname, '..', 'dist-electron', 'preload.cjs'),
+    // if explicitly unpacked
+    path.join(process.resourcesPath, 'app.asar.unpacked', 'preload.cjs'),
+    // dev fallback (repo root)
+    path.join(process.cwd(), 'dist-electron', 'preload.cjs'),
+  ];
+  for (const p of candidates) {
+    try { if (fs.existsSync(p)) return p; } catch {}
+  }
+  // Fallback: prefer a preload.cjs next to __dirname if present, else return a path that may be packaged.
+  const fallback = path.join(__dirname, 'preload.cjs');
+  if (fs.existsSync(fallback)) return fallback;
+  // Don't throw here to avoid crashing packaged app during startup; log and return fallback path.
+  console.warn('resolvePreload: preload not found in known locations, returning fallback path:', fallback);
+  return fallback;
+}
+
 // Store app data next to the executable (true portable mode)
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 app.setPath('userData', path.join(__dirname, 'userdata'));
@@ -110,6 +134,8 @@ function createWindows() {
   const secondary = displays.find(d => d.id !== primary.id) || primary;
 
   // Program (audience) window
+  console.log('[preload]', resolvePreload());
+
   displayWin = new BrowserWindow({
     x: secondary.bounds.x,
     y: secondary.bounds.y,
@@ -118,8 +144,10 @@ function createWindows() {
     fullscreen: secondary.id !== primary.id,
     backgroundColor: '#000000',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.cjs'),
-      contextIsolation: true
+      preload: resolvePreload(),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false
     },
     autoHideMenuBar: true,
     show: false
@@ -133,8 +161,10 @@ function createWindows() {
     height: 800,
     backgroundColor: '#111111',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.cjs'),
-      contextIsolation: true
+      preload: resolvePreload(),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false
     },
     autoHideMenuBar: true,
     show: false
