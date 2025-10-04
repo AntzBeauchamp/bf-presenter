@@ -22,7 +22,10 @@
       "preload.js",
       "preload.cjs",
       "ui/**/*",
-      "package.json"
+      "package.json",
+      "ui/**",
+      "dist/**",
+      "dist-electron/**"
     ],
     "asarUnpack": [
       "dist-electron/preload.cjs",
@@ -54,6 +57,11 @@
       "oneClick": true,
       "perMachine": false,
       "allowToChangeInstallationDirectory": false
+    },
+    "asar": true,
+    "extraMetadata": {
+      "main": "main.js",
+      "type": "module"
     }
   }
 }
