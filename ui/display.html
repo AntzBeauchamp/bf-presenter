@@ -6,12 +6,25 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body class="display">
-  <div id="blackout" class="black"></div>
-  <div id="stage">
-    <img id="img" class="hidden" />
-    <video id="video" class="hidden" playsinline></video>
-    <audio id="audio" class="hidden"></audio>
+  <!-- Program stage: two layers for crossfade -->
+  <div id="programStage">
+    <div class="layer" id="layerA">
+      <img id="imgA" class="visual" />
+      <video id="videoA" class="visual" playsinline></video>
+    </div>
+
+    <div class="layer" id="layerB">
+      <img id="imgB" class="visual" />
+      <video id="videoB" class="visual" playsinline></video>
+    </div>
+
+    <!-- Single audio element (no crossfade for audio) -->
+    <audio id="audioEl"></audio>
+
+    <!-- Blackout overlay stays above visuals when needed -->
+    <div id="blackout" class="blackout"></div>
   </div>
+
   <div id="errorBanner" class="error hidden" role="alert"></div>
   <script src="display.js" type="module"></script>
 </body>
