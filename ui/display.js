@@ -228,6 +228,8 @@ function notifyError(message, err) {
 }
 
 function fileUrl(p) {
+  if (!p) return '';
+  if (typeof p === 'string' && /^https?:\/\//i.test(p)) return p;
   if (window.presenterAPI?.toFileURL) return window.presenterAPI.toFileURL(p);
   return 'file:///' + String(p).replace(/\\/g, '/').replace(/^\/+/, '');
 }
@@ -297,7 +299,7 @@ function showItem(item) {
     }
 
     if (item.displayImage && incoming?.img) {
-      const imageSrc = item.displayImage.startsWith('http') ? item.displayImage : fileUrl(item.displayImage);
+      const imageSrc = fileUrl(item.displayImage);
       incoming.img.onerror = (e) => notifyError('Unable to load image.', e);
       incoming.img.src = imageSrc;
       incoming.img.classList.add('show');
