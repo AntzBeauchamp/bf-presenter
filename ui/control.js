@@ -33,6 +33,7 @@ let programId = null;
 let nextUpId = null;
 let index = -1;
 const logBuffer = [];
+const selectedMediaIds = new Set();
 
 let isProgramBlanked = false;
 let isProgramPlaying = false;
@@ -224,7 +225,11 @@ function updateThumbnailWithDisplayImage(item) {
 
 function buildThumb(item, { interactive = true } = {}) {
   const container = document.createElement('div');
-  container.className = 'thumb';
+  const classes = ['thumb'];
+  if (interactive) {
+    classes.push('media-thumb');
+  }
+  container.className = classes.join(' ');
   container.dataset.id = item.id;
 
   const img = document.createElement('img');
@@ -243,6 +248,10 @@ function buildThumb(item, { interactive = true } = {}) {
   meta.appendChild(badge);
   container.appendChild(meta);
 
+  if (interactive && selectedMediaIds.has(item.id)) {
+    container.classList.add('selected');
+  }
+
   if (item.id === previewId) {
     container.classList.add('previewing');
   }
@@ -254,11 +263,37 @@ function buildThumb(item, { interactive = true } = {}) {
   }
 
   if (interactive) {
-    container.addEventListener('click', () => {
+    container.addEventListener('click', (event) => {
+      const multi = event.ctrlKey || event.metaKey;
+      let shouldSelect = true;
+      if (!multi) {
+        document.querySelectorAll('.media-thumb.selected').forEach((el) => {
+          if (el !== container) {
+            el.classList.remove('selected');
+          }
+        });
+        if (selectedMediaIds.has(item.id)) {
+          shouldSelect = false;
+        }
+        selectedMediaIds.clear();
+      }
+
+      if (multi && selectedMediaIds.has(item.id)) {
+        selectedMediaIds.delete(item.id);
+        container.classList.remove('selected');
+      } else if (shouldSelect) {
+        selectedMediaIds.add(item.id);
+        container.classList.add('selected');
+      } else {
+        container.classList.remove('selected');
+      }
+
       stageNext(item.id);
     });
 
     container.addEventListener('dblclick', () => {
+      selectedMediaIds.clear();
+      selectedMediaIds.add(item.id);
       previewItem(item.id);
     });
   } else {
@@ -273,6 +308,7 @@ function renderMediaGrid() {
   grid.innerHTML = '';
 
   if (!media.length) {
+    selectedMediaIds.clear();
     const empty = document.createElement('div');
     empty.className = 'nextup-placeholder';
     empty.style.gridColumn = '1 / -1';
@@ -286,6 +322,38 @@ function renderMediaGrid() {
     grid.appendChild(thumb);
   });
 }
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Delete') {
+    const selectedEls = document.querySelectorAll('.media-thumb.selected');
+    if (!selectedEls.length) return;
+
+    let removedAny = false;
+    selectedEls.forEach((el) => {
+      const id = el.dataset.id;
+      if (!id) return;
+      const idx = media.findIndex((m) => m.id === id);
+      if (idx !== -1) {
+        if (previewId === id) {
+          previewId = null;
+          renderPreview(null);
+        }
+        if (nextUpId === id) {
+          nextUpId = null;
+          renderNextUp(null);
+        }
+        selectedMediaIds.delete(id);
+        media.splice(idx, 1);
+        removedAny = true;
+      }
+    });
+
+    if (removedAny) {
+      renderMediaGrid();
+      console.log('CONTROL: deleted media items via keyboard');
+    }
+  }
+});
 
 function renderNextUp(item) {
   if (!nextUpArea) return;
