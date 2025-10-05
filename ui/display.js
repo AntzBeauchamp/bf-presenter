@@ -25,6 +25,7 @@ function logDisplay(level, msg, data = null) {
 }
 
 console.log('Display ready');
+window.presenterAPI.send('display:get-background');
 
 (function tapConsole() {
   if (!logAPI?.append) return;
@@ -422,7 +423,9 @@ window.presenterAPI.onProgramEvent('display:unblack', () => {
 
 window.presenterAPI.onProgramEvent('display:set-background', (absPath) => {
   backgroundImagePath = absPath || null;
-  if (!isBlanked && !hasActiveVisual()) {
+  console.log('DISPLAY: background set to', backgroundImagePath || 'none');
+
+  if (!hasActiveVisual() && !isBlanked) {
     showBackgroundFallback();
   }
 });
