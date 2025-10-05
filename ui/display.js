@@ -341,6 +341,7 @@ function pauseCurrent() {
 
 function wireEndedHandlers() {
   const onEnded = () => {
+    console.log('Display: media finished, notifying Control');
     window.presenterAPI.send('display:ended');
   };
   videoA.onended = onEnded;

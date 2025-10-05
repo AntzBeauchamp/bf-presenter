@@ -359,14 +359,12 @@ function previewItem(id) {
   renderMediaGrid();
 }
 
-function pushPreviewToDisplay() {
-  if (!previewId) return;
-  const item = media.find((entry) => entry.id === previewId);
-  if (!item) return;
-  if (!window.presenterAPI?.showOnProgram) return;
+function pushToProgram(item) {
+  if (!item) return false;
+  if (!window.presenterAPI?.showOnProgram) return false;
 
-  programId = previewId;
-  index = media.findIndex((entry) => entry.id === previewId);
+  programId = item.id;
+  index = media.findIndex((entry) => entry.id === item.id);
   window.presenterAPI.showOnProgram({
     path: item.path,
     type: item.type,
@@ -375,6 +373,14 @@ function pushPreviewToDisplay() {
   window.presenterAPI.play?.();
   updatePlayToggleUI(true);
   renderMediaGrid();
+  return true;
+}
+
+function pushPreviewToDisplay() {
+  if (!previewId) return;
+  const item = media.find((entry) => entry.id === previewId);
+  if (!item) return;
+  pushToProgram(item);
 }
 
 btnPush?.addEventListener('click', () => {
@@ -532,10 +538,51 @@ setupDropTarget(nextUpArea, (paths) => {
 });
 
 window.presenterAPI?.onProgramEvent?.('display:ended', () => {
+  console.log('CONTROL: Display finished playback, advancing media');
   updatePlayToggleUI(false);
-  if (!previewId) return;
-  if (previewId === programId) return;
-  pushPreviewToDisplay();
+
+  let pushed = false;
+  let gridDirty = false;
+
+  if (previewId) {
+    const item = media.find((m) => m.id === previewId) ?? null;
+    if (item) {
+      pushed = pushToProgram(item);
+      if (pushed) {
+        console.log('CONTROL: Auto-pushed Preview to Program', item.name);
+      }
+    }
+    previewId = null;
+    renderPreview(null);
+    gridDirty = true;
+  }
+
+  if (!previewId) {
+    const nextItem = media.find((m) => m.id === nextUpId) ?? null;
+    if (nextItem) {
+      previewId = nextItem.id;
+      console.log('CONTROL: Auto-pulled Next Up into Preview', nextItem.name);
+      renderPreview(nextItem);
+      nextUpId = null;
+      renderNextUp(null);
+      gridDirty = true;
+    }
+  }
+
+  if (!pushed) {
+    programId = null;
+    index = -1;
+    gridDirty = true;
+  }
+
+  if (gridDirty) {
+    renderMediaGrid();
+  }
+
+  if (!previewId && !nextUpId) {
+    console.log('CONTROL: No Preview or Next Up — show fallback background');
+    window.presenterAPI?.setBackground?.(null);
+  }
 });
 
 renderNextUp(null);
