@@ -134,31 +134,40 @@ function hasActiveVisual() {
   return !!(visibleImg || visibleVideo);
 }
 
+function clearActiveVisualImmediately() {
+  const { layer, img, video } = getActiveLayer();
+  try { video.pause(); } catch {}
+  video.removeAttribute('src'); video.load();
+  img.removeAttribute('src');
+  img.classList.remove('show');
+  video.classList.remove('show');
+  layer.classList.remove('visible');
+}
+
 function showFallbackAfterEnd() {
-  if (!hasActiveVisual() && !isBlanked) {
-    resetSwapTimer();
-    if (backgroundImagePath) {
-      console.log('DISPLAY: showing background after media ended');
-      const incoming = getInactiveLayer();
-      const outgoing = getActiveLayer();
-      clearLayerContent(incoming);
-      if (incoming?.img) {
-        incoming.img.src = fileUrl(backgroundImagePath);
-        incoming.img.classList.add('show');
-      }
-      blackout?.classList.add('hidden');
-      incoming.layer?.classList.add('visible');
-      outgoing.layer?.classList.remove('visible');
-      swapTimer = window.setTimeout(() => {
-        clearLayerContent(outgoing);
-        swapTimer = null;
-      }, 1000);
-      activeLayerKey = activeLayerKey === 'A' ? 'B' : 'A';
-    } else {
-      console.log('DISPLAY: no background, reverting to black');
-      hideAllVisuals();
-      blackout?.classList.remove('hidden');
-    }
+  // Skip if new media started or display is blanked
+  if (hasActiveVisual() || isBlanked) return;
+
+  if (backgroundImagePath) {
+    console.log('DISPLAY: showing background after end');
+    const incoming = getInactiveLayer();
+    const outgoing = getActiveLayer();
+    clearLayerContent(incoming);
+
+    incoming.img.src = fileUrl(backgroundImagePath);
+    incoming.img.classList.add('show');
+    blackout.classList.add('hidden');
+    incoming.layer.classList.add('visible');
+    outgoing.layer.classList.remove('visible');
+
+    setTimeout(() => {
+      activeLayerKey = (activeLayerKey === 'A') ? 'B' : 'A';
+      clearLayerContent(outgoing);
+    }, 1000);
+  } else {
+    console.log('DISPLAY: no background — reverting to black');
+    hideAllVisuals();
+    blackout.classList.remove('hidden');
   }
 }
 
@@ -369,17 +378,20 @@ function pauseCurrent() {
   try { audioEl.pause(); } catch (err) { console.warn('Audio pause failed', err); }
 }
 
-function wireEndedHandlers() {
-  const onEnded = () => {
-    console.log('Display: media finished, notifying Control');
-    window.presenterAPI.send('display:ended');
-    window.setTimeout(showFallbackAfterEnd, 1200);
-  };
-  videoA.onended = onEnded;
-  videoB.onended = onEnded;
-  audioEl.onended = onEnded;
+function onEnded() {
+  console.log('DISPLAY: media ended → notifying Control');
+  window.presenterAPI.send('display:ended');
+
+  // Step 1: clear the finished frame
+  clearActiveVisualImmediately();
+
+  // Step 2: after 1 s, if nothing new was shown, display fallback
+  setTimeout(showFallbackAfterEnd, 1000);
 }
-wireEndedHandlers();
+
+videoA.onended = onEnded;
+videoB.onended = onEnded;
+audioEl.onended = onEnded;
 
 window.presenterAPI.onProgramEvent('display:show-item', (item) => {
   showItem(item);
