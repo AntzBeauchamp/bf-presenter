@@ -660,7 +660,6 @@ window.presenterAPI?.onProgramEvent?.('display:ended', () => {
 
   if (!previewId && !nextUpId) {
     console.log('CONTROL: No Preview or Next Up — show fallback background');
-    window.presenterAPI?.setBackground?.(null);
   }
 });
 
