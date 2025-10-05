@@ -12,6 +12,8 @@ let activeLayerKey = 'A';
 let currentItem = null;
 let currentType = null;
 let swapTimer = null;
+let fallbackTimer = null;
+let playbackToken = 0;
 
 let backgroundImagePath = null;
 let isBlanked = false;
@@ -25,6 +27,7 @@ function logDisplay(level, msg, data = null) {
 }
 
 console.log('Display ready');
+window.presenterAPI.send('display:get-background');
 
 (function tapConsole() {
   if (!logAPI?.append) return;
@@ -134,31 +137,23 @@ function hasActiveVisual() {
   return !!(visibleImg || visibleVideo);
 }
 
-function clearActiveVisualImmediately() {
-  const { layer, img, video } = getActiveLayer();
-  try { video.pause(); } catch {}
-  video.removeAttribute('src'); video.load();
-  img.removeAttribute('src');
-  img.classList.remove('show');
-  video.classList.remove('show');
-  layer.classList.remove('visible');
-}
+function showFallbackAfterEnd(expectedToken) {
+  if (expectedToken !== playbackToken || isBlanked) return;
 
-function showFallbackAfterEnd() {
-  // Skip if new media started or display is blanked
-  if (hasActiveVisual() || isBlanked) return;
+  const outgoing = getActiveLayer();
+  const incoming = getInactiveLayer();
 
   if (backgroundImagePath) {
     console.log('DISPLAY: showing background after end');
-    const incoming = getInactiveLayer();
-    const outgoing = getActiveLayer();
     clearLayerContent(incoming);
 
-    incoming.img.src = fileUrl(backgroundImagePath);
-    incoming.img.classList.add('show');
+    if (incoming?.img) {
+      incoming.img.src = fileUrl(backgroundImagePath);
+      incoming.img.classList.add('show');
+    }
     blackout.classList.add('hidden');
-    incoming.layer.classList.add('visible');
-    outgoing.layer.classList.remove('visible');
+    incoming.layer?.classList.add('visible');
+    outgoing.layer?.classList.remove('visible');
 
     setTimeout(() => {
       activeLayerKey = (activeLayerKey === 'A') ? 'B' : 'A';
@@ -166,8 +161,11 @@ function showFallbackAfterEnd() {
     }, 1000);
   } else {
     console.log('DISPLAY: no background — reverting to black');
-    hideAllVisuals();
     blackout.classList.remove('hidden');
+    outgoing.layer?.classList.remove('visible');
+    setTimeout(() => {
+      clearLayerContent(outgoing);
+    }, 1000);
   }
 }
 
@@ -211,6 +209,10 @@ function stopAudio() {
 
 function hideAll() {
   resetSwapTimer();
+  if (fallbackTimer) {
+    clearTimeout(fallbackTimer);
+    fallbackTimer = null;
+  }
   hideAllVisuals();
   stopAudio();
   currentItem = null;
@@ -266,6 +268,11 @@ function prepareVideo(layer, item) {
 }
 
 function showItem(item) {
+  playbackToken += 1;
+  if (fallbackTimer) {
+    clearTimeout(fallbackTimer);
+    fallbackTimer = null;
+  }
   console.log('Display received item', item);
   currentItem = item || null;
   currentType = item?.type || null;
@@ -382,11 +389,14 @@ function onEnded() {
   console.log('DISPLAY: media ended → notifying Control');
   window.presenterAPI.send('display:ended');
 
-  // Step 1: clear the finished frame
-  clearActiveVisualImmediately();
-
-  // Step 2: after 1 s, if nothing new was shown, display fallback
-  setTimeout(showFallbackAfterEnd, 1000);
+  const tokenAtEnd = playbackToken;
+  if (fallbackTimer) {
+    clearTimeout(fallbackTimer);
+  }
+  fallbackTimer = window.setTimeout(() => {
+    fallbackTimer = null;
+    showFallbackAfterEnd(tokenAtEnd);
+  }, 1000);
 }
 
 videoA.onended = onEnded;
@@ -422,7 +432,9 @@ window.presenterAPI.onProgramEvent('display:unblack', () => {
 
 window.presenterAPI.onProgramEvent('display:set-background', (absPath) => {
   backgroundImagePath = absPath || null;
-  if (!isBlanked && !hasActiveVisual()) {
+  console.log('DISPLAY: background set to', backgroundImagePath || 'none');
+
+  if (!hasActiveVisual() && !isBlanked) {
     showBackgroundFallback();
   }
 });
