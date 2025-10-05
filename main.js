@@ -222,6 +222,11 @@ ipcMain.on('display:set-background', (_evt, absPath) => {
 });
 
 ipcMain.on('display:show-item', (_evt, item) => {
+  if (!item || !item.path) {
+    console.warn('[MAIN] Ignored display:show-item without path', item);
+    return;
+  }
+
   try {
     console.log('MAIN: forwarding to display', item);
     const forwarded = { ...item };
