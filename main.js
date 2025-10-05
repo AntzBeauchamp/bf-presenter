@@ -27,6 +27,7 @@ app.setPath('userData', path.join(__dirname, 'userdata'));
 
 let controlWin, displayWin;
 let fileServerPort = null;
+let backgroundImagePath = null;
 
 function encodePathForUrl(p) {
   return Buffer.from(p, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -216,8 +217,15 @@ ipcMain.handle('pick-image', async () => {
 });
 
 ipcMain.on('display:set-background', (_evt, absPath) => {
+  backgroundImagePath = absPath || null;
   if (displayWin && !displayWin.isDestroyed()) {
-    displayWin.webContents.send('display:set-background', absPath || null);
+    displayWin.webContents.send('display:set-background', backgroundImagePath);
+  }
+});
+
+ipcMain.on('display:get-background', (event) => {
+  if (backgroundImagePath) {
+    event.reply('display:set-background', backgroundImagePath);
   }
 });
 
