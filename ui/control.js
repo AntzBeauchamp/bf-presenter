@@ -444,16 +444,58 @@ function pushToProgram(item) {
   return true;
 }
 
-function pushPreviewToDisplay() {
-  if (!previewId) return;
-  const item = media.find((entry) => entry.id === previewId);
-  if (!item) return;
-  pushToProgram(item);
+function pushAtomicFromPreviewAndBackfill() {
+  let didPush = false;
+  let gridDirty = false;
+
+  if (previewId) {
+    const item = media.find((m) => m.id === previewId) ?? null;
+    if (item) {
+      didPush = pushToProgram(item);
+      if (didPush) {
+        console.log('CONTROL: Auto-pushed Preview to Program', item.name);
+      }
+    }
+    previewId = null;
+    renderPreview(null);
+    gridDirty = true;
+  } else if (nextUpId) {
+    const item = media.find((m) => m.id === nextUpId) ?? null;
+    if (item) {
+      didPush = pushToProgram(item);
+      if (didPush) {
+        console.log('CONTROL: Promoted Next Up directly to Program', item.name);
+      }
+    }
+    nextUpId = null;
+    renderNextUp(null);
+    gridDirty = true;
+  }
+
+  if (!previewId && nextUpId) {
+    const nextItem = media.find((m) => m.id === nextUpId) ?? null;
+    if (nextItem) {
+      previewId = nextUpId;
+      renderPreview(nextItem);
+      nextUpId = null;
+      renderNextUp(null);
+      gridDirty = true;
+      console.log('CONTROL: Auto-pulled Next Up into Preview', nextItem.name);
+    }
+  }
+
+  if (gridDirty) {
+    renderMediaGrid();
+  }
+
+  return didPush;
 }
 
-btnPush?.addEventListener('click', () => {
-  pushPreviewToDisplay();
-});
+if (btnPush) {
+  btnPush.onclick = () => {
+    pushAtomicFromPreviewAndBackfill();
+  };
+}
 
 if (btnSetImage) {
   btnSetImage.onclick = async () => {
@@ -607,43 +649,12 @@ setupDropTarget(nextUpArea, (paths) => {
 
 window.presenterAPI?.onProgramEvent?.('display:ended', () => {
   console.log('CONTROL: Display finished playback, advancing media');
-  updatePlayToggleUI(false);
-
-  let pushed = false;
-  let gridDirty = false;
-
-  if (previewId) {
-    const item = media.find((m) => m.id === previewId) ?? null;
-    if (item) {
-      pushed = pushToProgram(item);
-      if (pushed) {
-        console.log('CONTROL: Auto-pushed Preview to Program', item.name);
-      }
-    }
-    previewId = null;
-    renderPreview(null);
-    gridDirty = true;
-  }
-
-  if (!previewId) {
-    const nextItem = media.find((m) => m.id === nextUpId) ?? null;
-    if (nextItem) {
-      previewId = nextItem.id;
-      console.log('CONTROL: Auto-pulled Next Up into Preview', nextItem.name);
-      renderPreview(nextItem);
-      nextUpId = null;
-      renderNextUp(null);
-      gridDirty = true;
-    }
-  }
+  const pushed = pushAtomicFromPreviewAndBackfill();
 
   if (!pushed) {
+    updatePlayToggleUI(false);
     programId = null;
     index = -1;
-    gridDirty = true;
-  }
-
-  if (gridDirty) {
     renderMediaGrid();
   }
 
