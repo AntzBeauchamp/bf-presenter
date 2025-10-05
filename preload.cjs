@@ -3,10 +3,8 @@ const { pathToFileURL } = require('url');
 
 contextBridge.exposeInMainWorld('presenterAPI', {
   pickMedia: (opts) => ipcRenderer.invoke('pick-media', opts || {}),
-  pickImage: async () => {
-    const { canceled, filePaths } = await ipcRenderer.invoke('pick-image');
-    return canceled ? null : filePaths[0];
-  },
+  pickImage: () => ipcRenderer.invoke('pick-image'),
+  setBackground: (absPath) => ipcRenderer.send('display:set-background', absPath),
   showOnProgram: (item) => ipcRenderer.send('display:show-item', item),
   play: () => ipcRenderer.send('display:play'),
   pause: () => ipcRenderer.send('display:pause'),

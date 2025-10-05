@@ -13,6 +13,9 @@ let currentItem = null;
 let currentType = null;
 let swapTimer = null;
 
+let backgroundImagePath = null;
+let isBlanked = false;
+
 const logAPI = window.presenterAPI?.log;
 
 function logDisplay(level, msg, data = null) {
@@ -84,6 +87,11 @@ function getActiveLayer() {
   return getLayerElements(activeLayerKey);
 }
 
+function getInactiveLayer() {
+  const inactiveKey = activeLayerKey === 'A' ? 'B' : 'A';
+  return getLayerElements(inactiveKey);
+}
+
 function resetSwapTimer() {
   if (swapTimer) {
     clearTimeout(swapTimer);
@@ -117,6 +125,43 @@ function hideAllVisuals() {
   clearLayerContent(getLayerElements('B'));
   layerA?.classList.remove('visible');
   layerB?.classList.remove('visible');
+}
+
+function hasActiveVisual() {
+  const { img, video } = getActiveLayer();
+  const visibleImg = img?.classList.contains('show') && img.src;
+  const visibleVideo = video?.classList.contains('show') && video.src;
+  return !!(visibleImg || visibleVideo);
+}
+
+function showBackgroundFallback() {
+  const outgoing = getActiveLayer();
+  const incomingKey = activeLayerKey === 'A' ? 'B' : 'A';
+  const incoming = getLayerElements(incomingKey);
+
+  resetSwapTimer();
+  clearLayerContent(incoming);
+
+  if (backgroundImagePath) {
+    if (incoming?.img) {
+      incoming.img.src = fileUrl(backgroundImagePath);
+      incoming.img.classList.add('show');
+    }
+    blackout?.classList.add('hidden');
+    incoming.layer?.classList.add('visible');
+    outgoing.layer?.classList.remove('visible');
+    swapTimer = window.setTimeout(() => {
+      clearLayerContent(outgoing);
+      swapTimer = null;
+    }, 1000);
+    activeLayerKey = incomingKey;
+  } else {
+    incoming.layer?.classList.remove('visible');
+    outgoing.layer?.classList.remove('visible');
+    blackout?.classList.remove('hidden');
+    clearLayerContent(outgoing);
+    clearLayerContent(incoming);
+  }
 }
 
 function stopAudio() {
@@ -155,20 +200,8 @@ function notifyError(message, err) {
 }
 
 function fileUrl(p) {
-  try {
-    if (window.presenterAPI && typeof window.presenterAPI.toFileURL === 'function') {
-      return window.presenterAPI.toFileURL(p);
-    }
-  } catch (err) {
-    console.warn('presenterAPI.toFileURL failed in display, falling back', err);
-  }
-  try {
-    const normalized = p.replace(/\\/g, '/');
-    if (!normalized.startsWith('/')) return `file:///${normalized}`;
-    return `file://${normalized}`;
-  } catch (err) {
-    return `file://${p}`;
-  }
+  if (window.presenterAPI?.toFileURL) return window.presenterAPI.toFileURL(p);
+  return 'file:///' + String(p).replace(/\\/g, '/').replace(/^\/+/, '');
 }
 
 function prepareImage(layer, item) {
@@ -202,7 +235,11 @@ function showItem(item) {
 
   if (!item) {
     hideAll();
-    blackout?.classList.remove('hidden');
+    if (!isBlanked && backgroundImagePath) {
+      showBackgroundFallback();
+    } else {
+      blackout?.classList.remove('hidden');
+    }
     return;
   }
 
@@ -240,7 +277,6 @@ function showItem(item) {
       blackout?.classList.add('hidden');
     } else {
       willShowVisual = false;
-      blackout?.classList.remove('hidden');
     }
   } else {
     notifyError('Unsupported media type.', new Error(item.type));
@@ -258,10 +294,26 @@ function showItem(item) {
       swapTimer = null;
     }, 1000);
   } else {
-    incoming.layer.classList.remove('visible');
-    outgoing.layer.classList.remove('visible');
-    clearLayerContent(outgoing);
-    clearLayerContent(incoming);
+    if (backgroundImagePath && !isBlanked) {
+      clearLayerContent(incoming);
+      if (incoming?.img) {
+        incoming.img.src = fileUrl(backgroundImagePath);
+        incoming.img.classList.add('show');
+      }
+      blackout?.classList.add('hidden');
+      incoming.layer?.classList.add('visible');
+      outgoing.layer?.classList.remove('visible');
+      swapTimer = window.setTimeout(() => {
+        clearLayerContent(outgoing);
+        swapTimer = null;
+      }, 1000);
+    } else {
+      incoming.layer?.classList.remove('visible');
+      outgoing.layer?.classList.remove('visible');
+      blackout?.classList.remove('hidden');
+      clearLayerContent(outgoing);
+      clearLayerContent(incoming);
+    }
   }
 }
 
@@ -311,9 +363,22 @@ window.presenterAPI.onProgramEvent('display:pause', () => {
 
 window.presenterAPI.onProgramEvent('display:black', () => {
   pauseCurrent();
+  isBlanked = true;
   blackout?.classList.remove('hidden');
 });
 
 window.presenterAPI.onProgramEvent('display:unblack', () => {
-  blackout?.classList.add('hidden');
+  isBlanked = false;
+  if (!hasActiveVisual()) {
+    showBackgroundFallback();
+  } else {
+    blackout?.classList.add('hidden');
+  }
+});
+
+window.presenterAPI.onProgramEvent('display:set-background', (absPath) => {
+  backgroundImagePath = absPath || null;
+  if (!isBlanked && !hasActiveVisual()) {
+    showBackgroundFallback();
+  }
 });

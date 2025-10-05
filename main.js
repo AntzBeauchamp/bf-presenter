@@ -208,13 +208,17 @@ ipcMain.handle('pick-media', async (_evt, opts = {}) => {
 });
 
 ipcMain.handle('pick-image', async () => {
-  const result = await dialog.showOpenDialog({
+  const { canceled, filePaths } = await dialog.showOpenDialog({
     properties: ['openFile'],
-    filters: [
-      { name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }
-    ]
+    filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }]
   });
-  return result;
+  return canceled ? null : filePaths[0];
+});
+
+ipcMain.on('display:set-background', (_evt, absPath) => {
+  if (displayWin && !displayWin.isDestroyed()) {
+    displayWin.webContents.send('display:set-background', absPath || null);
+  }
 });
 
 ipcMain.on('display:show-item', (_evt, item) => {

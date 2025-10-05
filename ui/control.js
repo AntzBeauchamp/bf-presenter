@@ -1,11 +1,10 @@
 const btnAdd = document.getElementById('btnAdd');
 const btnPush = document.getElementById('btnPush');
 const btnPlay = document.getElementById('btnPlay');
-const btnPause = document.getElementById('btnPause');
 const btnPrev = document.getElementById('btnPrev');
 const btnNext = document.getElementById('btnNext');
-const btnBlack = document.getElementById('btnBlack');
-const btnUnblack = document.getElementById('btnUnblack');
+const btnBlankToggle = document.getElementById('btnBlankToggle');
+const btnBackground = document.getElementById('btnBackground');
 const btnPlayNext = document.getElementById('btnPlayNext');
 const btnClearNext = document.getElementById('btnClearNext');
 const btnSetImage = document.getElementById('btnSetImage');
@@ -34,6 +33,20 @@ let programId = null;
 let nextUpId = null;
 let index = -1;
 const logBuffer = [];
+
+let isProgramBlanked = false;
+let isProgramPlaying = false;
+
+function updatePlayToggleUI(playing) {
+  isProgramPlaying = !!playing;
+  if (!btnPlay) return;
+  const label = isProgramPlaying ? 'Pause' : 'Play';
+  btnPlay.textContent = isProgramPlaying ? '⏸' : '▶';
+  btnPlay.setAttribute('aria-label', label);
+  btnPlay.setAttribute('title', label);
+}
+
+updatePlayToggleUI(false);
 
 function fileUrl(p) {
   try {
@@ -360,6 +373,7 @@ function pushPreviewToDisplay() {
     displayImage: item.displayImage || null
   });
   window.presenterAPI.play?.();
+  updatePlayToggleUI(true);
   renderMediaGrid();
 }
 
@@ -402,12 +416,40 @@ btnClearNext?.addEventListener('click', () => {
   renderMediaGrid();
 });
 
-btnPlay?.addEventListener('click', () => window.presenterAPI?.play?.());
-btnPause?.addEventListener('click', () => window.presenterAPI?.pause?.());
+btnBlankToggle.onclick = () => {
+  if (isProgramBlanked) {
+    window.presenterAPI.unblack();
+    isProgramBlanked = false;
+    btnBlankToggle.textContent = 'Blank';
+  } else {
+    window.presenterAPI.black();
+    isProgramBlanked = true;
+    btnBlankToggle.textContent = 'Unblank';
+  }
+};
+
+btnBackground.onclick = async () => {
+  try {
+    const imgPath = await window.presenterAPI.pickImage();
+    if (!imgPath) return; // user cancelled
+    window.presenterAPI.setBackground(imgPath);
+  } catch (e) {
+    console.error('Background picker failed', e);
+  }
+};
+
+btnPlay?.addEventListener('click', () => {
+  if (!window.presenterAPI) return;
+  if (isProgramPlaying) {
+    window.presenterAPI.pause?.();
+    updatePlayToggleUI(false);
+  } else {
+    window.presenterAPI.play?.();
+    updatePlayToggleUI(true);
+  }
+});
 btnNext?.addEventListener('click', () => window.presenterAPI?.next?.());
 btnPrev?.addEventListener('click', () => window.presenterAPI?.prev?.());
-btnBlack?.addEventListener('click', () => window.presenterAPI?.black?.());
-btnUnblack?.addEventListener('click', () => window.presenterAPI?.unblack?.());
 
 const fileInput = document.createElement('input');
 fileInput.type = 'file';
@@ -490,6 +532,7 @@ setupDropTarget(nextUpArea, (paths) => {
 });
 
 window.presenterAPI?.onProgramEvent?.('display:ended', () => {
+  updatePlayToggleUI(false);
   if (!previewId) return;
   if (previewId === programId) return;
   pushPreviewToDisplay();
