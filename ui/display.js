@@ -134,6 +134,34 @@ function hasActiveVisual() {
   return !!(visibleImg || visibleVideo);
 }
 
+function showFallbackAfterEnd() {
+  if (!hasActiveVisual() && !isBlanked) {
+    resetSwapTimer();
+    if (backgroundImagePath) {
+      console.log('DISPLAY: showing background after media ended');
+      const incoming = getInactiveLayer();
+      const outgoing = getActiveLayer();
+      clearLayerContent(incoming);
+      if (incoming?.img) {
+        incoming.img.src = fileUrl(backgroundImagePath);
+        incoming.img.classList.add('show');
+      }
+      blackout?.classList.add('hidden');
+      incoming.layer?.classList.add('visible');
+      outgoing.layer?.classList.remove('visible');
+      swapTimer = window.setTimeout(() => {
+        clearLayerContent(outgoing);
+        swapTimer = null;
+      }, 1000);
+      activeLayerKey = activeLayerKey === 'A' ? 'B' : 'A';
+    } else {
+      console.log('DISPLAY: no background, reverting to black');
+      hideAllVisuals();
+      blackout?.classList.remove('hidden');
+    }
+  }
+}
+
 function showBackgroundFallback() {
   const outgoing = getActiveLayer();
   const incomingKey = activeLayerKey === 'A' ? 'B' : 'A';
@@ -343,6 +371,7 @@ function wireEndedHandlers() {
   const onEnded = () => {
     console.log('Display: media finished, notifying Control');
     window.presenterAPI.send('display:ended');
+    window.setTimeout(showFallbackAfterEnd, 1200);
   };
   videoA.onended = onEnded;
   videoB.onended = onEnded;
