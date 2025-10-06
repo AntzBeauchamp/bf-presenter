@@ -36,6 +36,20 @@ let index = -1;
 const logBuffer = [];
 const selectedMediaIds = new Set();
 
+let draggingId = null;
+
+function indexById(arr, id) {
+  return arr.findIndex((m) => m.id === id);
+}
+
+function moveInArray(arr, fromIdx, toIdx) {
+  if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return arr;
+  const copy = arr.slice();
+  const [item] = copy.splice(fromIdx, 1);
+  copy.splice(toIdx, 0, item);
+  return copy;
+}
+
 let isProgramBlanked = false;
 let isProgramPlaying = false;
 let isRepeatEnabled = false;
@@ -242,14 +256,12 @@ function updateThumbnailWithDisplayImage(item) {
 function buildThumb(item, { interactive = true } = {}) {
   const container = document.createElement('div');
   const classes = ['thumb'];
-  if (interactive) {
-    classes.push('media-thumb');
-  }
   container.className = classes.join(' ');
   container.dataset.id = item.id;
 
   if (interactive) {
     container.draggable = true;
+    container.classList.add('media-thumb');
   }
 
   const img = document.createElement('img');
@@ -318,16 +330,69 @@ function buildThumb(item, { interactive = true } = {}) {
     });
 
     container.addEventListener('dragstart', (e) => {
+      draggingId = item.id;
+      container.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
       try {
         e.dataTransfer.setData('application/x-bfp-id', item.id);
       } catch {}
       e.dataTransfer.setData('text/plain', `id:${item.id}`);
-      container.classList.add('dragging');
     });
 
     container.addEventListener('dragend', () => {
-      container.classList.remove('dragging');
+      draggingId = null;
+      container.classList.remove('dragging', 'drop-before', 'drop-after');
+    });
+
+    container.addEventListener('dragover', (e) => {
+      if (!draggingId) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+
+      const rect = container.getBoundingClientRect();
+      const midX = rect.left + rect.width / 2;
+      const isBefore = e.clientX < midX;
+
+      container.classList.toggle('drop-before', isBefore);
+      container.classList.toggle('drop-after', !isBefore);
+    });
+
+    container.addEventListener('dragleave', () => {
+      container.classList.remove('drop-before', 'drop-after');
+    });
+
+    container.addEventListener('drop', (e) => {
+      if (!draggingId) return;
+      e.preventDefault();
+
+      const targetId = item.id;
+      if (targetId === draggingId) {
+        container.classList.remove('drop-before', 'drop-after');
+        return;
+      }
+
+      const rect = container.getBoundingClientRect();
+      const midX = rect.left + rect.width / 2;
+      const dropBefore = e.clientX < midX;
+
+      const fromIdx = indexById(media, draggingId);
+      const targetIdx = indexById(media, targetId);
+      if (fromIdx === -1 || targetIdx === -1) {
+        container.classList.remove('drop-before', 'drop-after');
+        return;
+      }
+
+      let toIdx = dropBefore ? targetIdx : targetIdx + 1;
+
+      if (fromIdx < targetIdx) {
+        toIdx -= 1;
+      }
+
+      toIdx = Math.max(0, toIdx);
+
+      media = moveInArray(media, fromIdx, toIdx);
+
+      renderMediaGrid();
     });
   } else {
     container.classList.add('readonly');
