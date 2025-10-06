@@ -3,6 +3,7 @@ const btnPush = document.getElementById('btnPush');
 const btnPlay = document.getElementById('btnPlay');
 const btnPrev = document.getElementById('btnPrev');
 const btnNext = document.getElementById('btnNext');
+const btnRepeatToggle = document.getElementById('btnRepeatToggle');
 const btnBlankToggle = document.getElementById('btnBlankToggle');
 const btnBackground = document.getElementById('btnBackground');
 const btnPlayNextUp = document.getElementById('btnPlayNext');
@@ -37,6 +38,7 @@ const selectedMediaIds = new Set();
 
 let isProgramBlanked = false;
 let isProgramPlaying = false;
+let isRepeatEnabled = false;
 
 function updatePlayToggleUI(playing) {
   isProgramPlaying = !!playing;
@@ -47,7 +49,21 @@ function updatePlayToggleUI(playing) {
   btnPlay.setAttribute('title', label);
 }
 
+function updateRepeatButton() {
+  if (!btnRepeatToggle) return;
+  btnRepeatToggle.textContent = isRepeatEnabled ? 'Repeat: On' : 'Repeat: Off';
+  btnRepeatToggle.setAttribute('aria-pressed', String(isRepeatEnabled));
+  btnRepeatToggle.title = isRepeatEnabled ? 'Repeat on' : 'Repeat off';
+}
+
+btnRepeatToggle.onclick = () => {
+  isRepeatEnabled = !isRepeatEnabled;
+  updateRepeatButton();
+  window.presenterAPI.setRepeat(isRepeatEnabled);
+};
+
 updatePlayToggleUI(false);
+updateRepeatButton();
 
 function fileUrl(p) {
   try {
