@@ -6,6 +6,7 @@
   "scripts": {
     "start": "electron .",
     "dist:win:portable": "electron-builder --win portable",
+    "dist:win:installer": "electron-builder --win nsis --x64",
     "dist:win:x64": "electron-builder --win nsis"
   },
   "devDependencies": {
@@ -13,48 +14,27 @@
     "electron-builder": "26.0.12"
   },
   "build": {
-    "appId": "nz.bfh.presenter",
+    "appId": "com.beauchamp.presenter",
     "productName": "BF Presenter",
+    "directories": {
+      "output": "dist"
+    },
     "files": [
-      "dist/**",
-      "dist-electron/**",
       "main.js",
-      "preload.js",
       "preload.cjs",
-      "ui/**",
+      "ui/**/*",
       "package.json"
     ],
-    "directories": {
-      "buildResources": "build"
-    },
+    "asar": true,
     "win": {
-      "target": [
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ]
-    },
-    "portable": {
-      "artifactName": "BFPresenter-Portable-${version}-${arch}.exe"
+      "target": "nsis",
+      "icon": "assets/icon.ico"
     },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": false
-    },
-    "asar": true,
-    "extraMetadata": {
-      "main": "main.js",
-      "type": "module"
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
     }
   }
 }
