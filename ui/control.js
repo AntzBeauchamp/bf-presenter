@@ -5,7 +5,7 @@ const btnPrev = document.getElementById('btnPrev');
 const btnNext = document.getElementById('btnNext');
 const btnBlankToggle = document.getElementById('btnBlankToggle');
 const btnBackground = document.getElementById('btnBackground');
-const btnPlayNext = document.getElementById('btnPlayNext');
+const btnPlayNextUp = document.getElementById('btnPlayNext');
 const btnClearNext = document.getElementById('btnClearNext');
 const btnSetImage = document.getElementById('btnSetImage');
 
@@ -521,10 +521,33 @@ if (btnSetImage) {
   };
 }
 
-btnPlayNext?.addEventListener('click', () => {
-  if (!nextUpId) return;
-  previewItem(nextUpId);
-});
+if (btnPlayNextUp) {
+  btnPlayNextUp.onclick = () => {
+    if (!nextUpId) {
+      console.log('CONTROL: No Next Up item to play');
+      return;
+    }
+
+    // Find the item currently staged in Next Up
+    const item = media.find((m) => m.id === nextUpId);
+    if (!item) {
+      console.warn('CONTROL: Next Up item not found in media list');
+      nextUpId = null;
+      renderNextUp(null);
+      return;
+    }
+
+    // Move Next Up → Preview
+    previewId = nextUpId;
+    renderPreview(item);
+
+    // Clear Next Up
+    nextUpId = null;
+    renderNextUp(null);
+
+    console.log('CONTROL: Moved Next Up to Preview via Play Next Up button');
+  };
+}
 
 btnClearNext?.addEventListener('click', () => {
   nextUpId = null;
