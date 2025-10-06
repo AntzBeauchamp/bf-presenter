@@ -446,3 +446,8 @@ html, body.display {
   opacity: 1;
   pointer-events: none;
 }
+
+.droptarget {
+  outline: 2px dashed rgba(255, 255, 255, 0.35);
+  outline-offset: -6px;
+}

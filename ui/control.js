@@ -232,6 +232,10 @@ function buildThumb(item, { interactive = true } = {}) {
   container.className = classes.join(' ');
   container.dataset.id = item.id;
 
+  if (interactive) {
+    container.draggable = true;
+  }
+
   const img = document.createElement('img');
   img.src = getThumbSrcForItem(item);
   container.appendChild(img);
@@ -296,11 +300,36 @@ function buildThumb(item, { interactive = true } = {}) {
       selectedMediaIds.add(item.id);
       previewItem(item.id);
     });
+
+    container.addEventListener('dragstart', (e) => {
+      e.dataTransfer.effectAllowed = 'move';
+      try {
+        e.dataTransfer.setData('application/x-bfp-id', item.id);
+      } catch {}
+      e.dataTransfer.setData('text/plain', `id:${item.id}`);
+      container.classList.add('dragging');
+    });
+
+    container.addEventListener('dragend', () => {
+      container.classList.remove('dragging');
+    });
   } else {
     container.classList.add('readonly');
   }
 
   return container;
+}
+
+function getDraggedMediaIdFromEvent(e) {
+  let id = null;
+  try {
+    id = e.dataTransfer.getData('application/x-bfp-id');
+  } catch {}
+  if (!id) {
+    const t = e.dataTransfer.getData('text/plain') || '';
+    if (t.startsWith('id:')) id = t.slice(3);
+  }
+  return id || null;
 }
 
 function renderMediaGrid() {
@@ -652,23 +681,91 @@ setupDropTarget(leftPanel, (paths) => {
   addPathsToMedia(paths);
 });
 
-setupDropTarget(previewArea, (paths) => {
-  const before = media.length;
-  addPathsToMedia(paths);
-  const first = media[before];
-  if (first) {
-    previewItem(first.id);
-  }
-});
+if (previewArea) {
+  previewArea.addEventListener('dragover', (e) => {
+    if (!e.dataTransfer) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    previewArea.classList.add('droptarget');
+  });
 
-setupDropTarget(nextUpArea, (paths) => {
-  const before = media.length;
-  addPathsToMedia(paths);
-  const first = media[before];
-  if (first) {
-    stageNext(first.id);
-  }
-});
+  previewArea.addEventListener('dragleave', () => {
+    previewArea.classList.remove('droptarget');
+  });
+
+  previewArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    previewArea.classList.remove('droptarget');
+
+    const draggedId = getDraggedMediaIdFromEvent(e);
+    if (draggedId) {
+      const item = media.find((m) => m.id === draggedId);
+      if (item) {
+        previewId = draggedId;
+        renderPreview(item);
+        renderMediaGrid();
+      }
+      return;
+    }
+
+    const files = Array.from(e.dataTransfer?.files || []);
+    if (files.length) {
+      const paths = files.map((file) => file.path).filter(Boolean);
+      if (!paths.length) return;
+      const before = media.length;
+      addPathsToMedia(paths);
+      const firstNew = media[before];
+      if (firstNew) {
+        previewId = firstNew.id;
+        renderPreview(firstNew);
+        renderMediaGrid();
+      }
+    }
+  });
+}
+
+if (nextUpArea) {
+  nextUpArea.addEventListener('dragover', (e) => {
+    if (!e.dataTransfer) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    nextUpArea.classList.add('droptarget');
+  });
+
+  nextUpArea.addEventListener('dragleave', () => {
+    nextUpArea.classList.remove('droptarget');
+  });
+
+  nextUpArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    nextUpArea.classList.remove('droptarget');
+
+    const draggedId = getDraggedMediaIdFromEvent(e);
+    if (draggedId) {
+      const item = media.find((m) => m.id === draggedId);
+      if (item) {
+        nextUpId = draggedId;
+        renderNextUp(item);
+        renderMediaGrid();
+      }
+      return;
+    }
+
+    const files = Array.from(e.dataTransfer?.files || []);
+    if (files.length) {
+      const paths = files.map((file) => file.path).filter(Boolean);
+      if (!paths.length) return;
+      const before = media.length;
+      addPathsToMedia(paths);
+      const firstNew = media[before];
+      if (firstNew) {
+        nextUpId = firstNew.id;
+        renderNextUp(firstNew);
+        renderMediaGrid();
+      }
+    }
+  });
+}
 
 window.presenterAPI?.onProgramEvent?.('display:ended', () => {
   console.log('CONTROL: Display finished playback, advancing media');
