@@ -16,7 +16,9 @@ button {
   transition: background 120ms ease, border-color 120ms ease, transform 90ms ease;
 }
 
-#btnSetImage {
+#btnSetImage,
+#btnPrev,
+#btnNext {
   display: none;
 }
 
