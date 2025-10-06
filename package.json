@@ -23,12 +23,13 @@
       "main.js",
       "preload.cjs",
       "ui/**/*",
-      "package.json"
+      "package.json",
+      "BF_presenter_icon.ico"
     ],
     "asar": true,
     "win": {
       "target": "nsis",
-      "icon": "assets/icon.ico"
+      "icon": "BF_presenter_icon.ico"
     },
     "nsis": {
       "oneClick": false,

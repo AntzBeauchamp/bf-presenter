@@ -5,6 +5,9 @@ import http from 'http';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const windowsIconPath = process.platform === 'win32'
+  ? path.join(app.isPackaged ? process.resourcesPath : __dirname, 'BF_presenter_icon.ico')
+  : undefined;
 
 // Helper to resolve preload path in dev and production (inside asar)
 function resolvePreload() {
@@ -24,6 +27,9 @@ function resolvePreload() {
 
 // Store app data next to the executable (true portable mode)
 app.setPath('userData', path.join(__dirname, 'userdata'));
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.beauchamp.presenter');
+}
 
 let controlWin, displayWin;
 let fileServerPort = null;
@@ -145,7 +151,8 @@ function createWindows() {
       sandbox: false
     },
     autoHideMenuBar: true,
-    show: false
+    show: false,
+    icon: windowsIconPath
   });
   displayWin.loadFile(path.join('ui', 'display.html'));
   displayWin.webContents.once('did-finish-load', () => {
@@ -158,6 +165,7 @@ function createWindows() {
     width: 1100,
     height: 800,
     backgroundColor: '#111111',
+    icon: windowsIconPath,
     webPreferences: {
       preload: resolvePreload(),
       contextIsolation: true,
