@@ -95,6 +95,17 @@ function getInactiveLayer() {
   return getLayerElements(inactiveKey);
 }
 
+function resetVisualClass(el) {
+  if (!el) return;
+  el.className = 'visual';
+}
+
+function showVisual(el) {
+  if (!el) return;
+  resetVisualClass(el);
+  el.classList.add('show');
+}
+
 function resetSwapTimer() {
   if (swapTimer) {
     clearTimeout(swapTimer);
@@ -114,12 +125,12 @@ function clearLayerContent(layer) {
     try { layer.video.pause(); } catch {}
     layer.video.removeAttribute('src');
     try { layer.video.load(); } catch (err) { console.warn('Video load reset failed', err); }
-    layer.video.classList.remove('show');
+    resetVisualClass(layer.video);
   }
   if (layer.img) {
     layer.img.onerror = null;
     layer.img.removeAttribute('src');
-    layer.img.classList.remove('show');
+    resetVisualClass(layer.img);
   }
 }
 
@@ -149,7 +160,7 @@ function showFallbackAfterEnd(expectedToken) {
 
     if (incoming?.img) {
       incoming.img.src = fileUrl(backgroundImagePath);
-      incoming.img.classList.add('show');
+      showVisual(incoming.img);
     }
     blackout.classList.add('hidden');
     incoming.layer?.classList.add('visible');
@@ -180,7 +191,7 @@ function showBackgroundFallback() {
   if (backgroundImagePath) {
     if (incoming?.img) {
       incoming.img.src = fileUrl(backgroundImagePath);
-      incoming.img.classList.add('show');
+      showVisual(incoming.img);
     }
     blackout?.classList.add('hidden');
     incoming.layer?.classList.add('visible');
@@ -251,7 +262,7 @@ function prepareImage(layer, item) {
   if (!src) return false;
   layer.img.onerror = (e) => notifyError('Unable to load image.', e);
   layer.img.src = src;
-  layer.img.classList.add('show');
+  showVisual(layer.img);
   return true;
 }
 
@@ -263,7 +274,7 @@ function prepareVideo(layer, item) {
   layer.video.src = src;
   layer.video.preload = 'auto';
   layer.video.setAttribute('playsinline', '');
-  layer.video.classList.add('show');
+  showVisual(layer.video);
   return true;
 }
 
@@ -318,7 +329,7 @@ function showItem(item) {
       const imageSrc = fileUrl(item.displayImage);
       incoming.img.onerror = (e) => notifyError('Unable to load image.', e);
       incoming.img.src = imageSrc;
-      incoming.img.classList.add('show');
+      showVisual(incoming.img);
       willShowVisual = true;
       blackout?.classList.add('hidden');
     } else {
@@ -344,7 +355,7 @@ function showItem(item) {
       clearLayerContent(incoming);
       if (incoming?.img) {
         incoming.img.src = fileUrl(backgroundImagePath);
-        incoming.img.classList.add('show');
+        showVisual(incoming.img);
       }
       blackout?.classList.add('hidden');
       incoming.layer?.classList.add('visible');

@@ -381,24 +381,24 @@ function renderPreview(item) {
 
   if (item.type === 'image') {
     const img = document.createElement('img');
-    img.className = 'fit preview-media-fit';
+    img.className = 'visual preview-media';
     img.src = fileUrl(item.path);
     previewArea.appendChild(img);
   } else if (item.type === 'audio') {
     if (item.displayImage) {
       const img = document.createElement('img');
-      img.className = 'fit preview-media-fit';
+      img.className = 'visual preview-media';
       img.src = fileUrl(item.displayImage);
       previewArea.appendChild(img);
     }
     const audio = document.createElement('audio');
-    audio.className = 'preview-media-fit';
+    audio.className = 'preview-audio';
     audio.controls = true;
     audio.src = fileUrl(item.path);
     previewArea.appendChild(audio);
   } else {
     const video = document.createElement('video');
-    video.className = 'fit preview-media-fit';
+    video.className = 'visual preview-media';
     video.controls = true;
     video.playsInline = true;
     video.src = fileUrl(item.path);
