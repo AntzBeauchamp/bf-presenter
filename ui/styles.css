@@ -153,6 +153,10 @@ button:active {
   box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.55) inset;
 }
 
+.media-thumb {
+  position: relative;
+}
+
 .thumb.readonly {
   cursor: default;
 }
@@ -197,6 +201,26 @@ button:active {
 
 .badge.audio {
   color: #eaa;
+}
+
+.media-thumb.dragging {
+  opacity: 0.5;
+}
+
+.media-thumb.drop-before::before,
+.media-thumb.drop-after::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #5ac8fa;
+}
+.media-thumb.drop-before::before {
+  left: -2px;
+}
+.media-thumb.drop-after::after {
+  right: -2px;
 }
 
 .badge.image {
