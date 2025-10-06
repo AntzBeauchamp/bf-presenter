@@ -28,6 +28,7 @@ app.setPath('userData', path.join(__dirname, 'userdata'));
 let controlWin, displayWin;
 let fileServerPort = null;
 let backgroundImagePath = null;
+let repeatEnabled = false;
 
 function encodePathForUrl(p) {
   return Buffer.from(p, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -147,6 +148,9 @@ function createWindows() {
     show: false
   });
   displayWin.loadFile(path.join('ui', 'display.html'));
+  displayWin.webContents.once('did-finish-load', () => {
+    displayWin?.webContents.send('display:set-repeat', repeatEnabled);
+  });
   displayWin.once('ready-to-show', () => displayWin.show());
 
   // Presenter (control) window
@@ -220,6 +224,13 @@ ipcMain.on('display:set-background', (_evt, absPath) => {
   backgroundImagePath = absPath || null;
   if (displayWin && !displayWin.isDestroyed()) {
     displayWin.webContents.send('display:set-background', backgroundImagePath);
+  }
+});
+
+ipcMain.on('display:set-repeat', (_evt, enabled) => {
+  repeatEnabled = !!enabled;
+  if (displayWin && !displayWin.isDestroyed()) {
+    displayWin.webContents.send('display:set-repeat', repeatEnabled);
   }
 });
 

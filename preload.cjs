@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('presenterAPI', {
   pickImage: () => ipcRenderer.invoke('pick-image'),
   setBackground: (absPath) => ipcRenderer.send('display:set-background', absPath),
   showOnProgram: (item) => ipcRenderer.send('display:show-item', item),
+  setRepeat: (enabled) => ipcRenderer.send('display:set-repeat', !!enabled),
   play: () => ipcRenderer.send('display:play'),
   pause: () => ipcRenderer.send('display:pause'),
   black: () => ipcRenderer.send('display:black'),

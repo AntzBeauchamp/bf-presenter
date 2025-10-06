@@ -17,6 +17,7 @@ let playbackToken = 0;
 
 let backgroundImagePath = null;
 let isBlanked = false;
+let repeatEnabled = false;
 
 const logAPI = window.presenterAPI?.log;
 
@@ -273,6 +274,7 @@ function prepareVideo(layer, item) {
   layer.video.onerror = (e) => notifyError('Unable to load video.', e);
   layer.video.src = src;
   layer.video.preload = 'auto';
+  layer.video.loop = repeatEnabled;
   layer.video.setAttribute('playsinline', '');
   showVisual(layer.video);
   return true;
@@ -322,6 +324,7 @@ function showItem(item) {
     if (audioSrc) {
       audioEl.onerror = (e) => notifyError('Unable to load audio.', e);
       audioEl.src = audioSrc;
+      audioEl.loop = repeatEnabled;
       try { audioEl.load(); } catch (err) { console.warn('Audio load failed', err); }
     }
 
@@ -396,7 +399,18 @@ function pauseCurrent() {
   try { audioEl.pause(); } catch (err) { console.warn('Audio pause failed', err); }
 }
 
-function onEnded() {
+function onEnded(ev) {
+  if (repeatEnabled && (currentType === 'video' || currentType === 'audio')) {
+    try {
+      const el = ev?.target || (currentType === 'video' ? getActiveLayer().video : audioEl);
+      if (el) {
+        el.currentTime = 0;
+        el.play().catch(() => {});
+      }
+    } catch {}
+    return;
+  }
+
   console.log('DISPLAY: media ended → notifying Control');
   window.presenterAPI.send('display:ended');
 
@@ -416,6 +430,17 @@ audioEl.onended = onEnded;
 
 window.presenterAPI.onProgramEvent('display:show-item', (item) => {
   showItem(item);
+});
+
+window.presenterAPI.onProgramEvent('display:set-repeat', (enabled) => {
+  repeatEnabled = !!enabled;
+  const { video } = getActiveLayer();
+  if (audioEl) {
+    audioEl.loop = repeatEnabled;
+  }
+  if (video) {
+    video.loop = repeatEnabled;
+  }
 });
 
 window.presenterAPI.onProgramEvent('display:play', () => {
