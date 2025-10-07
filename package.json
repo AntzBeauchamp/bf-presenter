@@ -1,6 +1,6 @@
 {
   "name": "bf-presenter",
-  "version": "1.1.0",
+  "version": "1.5.0",
   "main": "main.js",
   "type": "module",
   "scripts": {
@@ -20,11 +20,18 @@
       "output": "dist"
     },
     "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
       "main.js",
       "preload.cjs",
+      "preload.js",
       "ui/**/*",
       "package.json",
       "BF_presenter_icon.ico"
+    ],
+    "asarUnpack": [
+      "dist-electron/preload.cjs",
+      "preload.cjs"
     ],
     "asar": true,
     "win": {
