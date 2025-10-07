@@ -329,13 +329,14 @@ function showItem(item) {
     }
 
     if (item.displayImage && incoming?.img) {
-      const imageSrc = fileUrl(item.displayImage);
+      // Show the item-specific image
       incoming.img.onerror = (e) => notifyError('Unable to load image.', e);
-      incoming.img.src = imageSrc;
+      incoming.img.src = fileUrl(item.displayImage);
       showVisual(incoming.img);
       willShowVisual = true;
       blackout?.classList.add('hidden');
     } else {
+      // No per-track image: show global background if set, else black
       willShowVisual = false;
     }
   } else {
@@ -370,7 +371,7 @@ function showItem(item) {
     } else {
       incoming.layer?.classList.remove('visible');
       outgoing.layer?.classList.remove('visible');
-      blackout?.classList.remove('hidden');
+      blackout?.classList.remove('hidden'); // pure black
       clearLayerContent(outgoing);
       clearLayerContent(incoming);
     }

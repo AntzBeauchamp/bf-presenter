@@ -1,5 +1,6 @@
 const btnAdd = document.getElementById('btnAdd');
 const btnPush = document.getElementById('btnPush');
+const btnClearPreview = document.getElementById('btnClearPreview');
 const btnPlay = document.getElementById('btnPlay');
 const btnPrev = document.getElementById('btnPrev');
 const btnNext = document.getElementById('btnNext');
@@ -465,6 +466,12 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    clearPreview();
+  }
+});
+
 function renderNextUp(item) {
   if (!nextUpArea) return;
   nextUpArea.innerHTML = '';
@@ -514,6 +521,13 @@ function renderPreview(item) {
     video.src = fileUrl(item.path);
     previewArea.appendChild(video);
   }
+}
+
+function clearPreview() {
+  previewId = null;
+  renderPreview(null);
+  renderMediaGrid();
+  console.log('CONTROL: preview cleared');
 }
 
 function stageNext(id) {
@@ -664,6 +678,8 @@ btnClearNext?.addEventListener('click', () => {
   renderNextUp(null);
   renderMediaGrid();
 });
+
+btnClearPreview?.addEventListener('click', clearPreview);
 
 btnBlankToggle.onclick = () => {
   if (isProgramBlanked) {
