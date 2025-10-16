@@ -517,6 +517,13 @@ function renderPreview(item) {
     audio.className = 'preview-audio';
     audio.controls = true;
     audio.src = fileUrl(item.path);
+    audio.muted = true;
+    audio.volume = 0;
+    audio.setAttribute('muted', '');
+    audio.addEventListener('loadedmetadata', () => {
+      audio.muted = true;
+      audio.volume = 0;
+    });
     previewArea.appendChild(audio);
   } else {
     const video = document.createElement('video');
@@ -524,6 +531,13 @@ function renderPreview(item) {
     video.controls = true;
     video.playsInline = true;
     video.src = fileUrl(item.path);
+    video.muted = true;
+    video.volume = 0;
+    video.setAttribute('muted', '');
+    video.addEventListener('loadedmetadata', () => {
+      video.muted = true;
+      video.volume = 0;
+    });
     previewArea.appendChild(video);
   }
 }

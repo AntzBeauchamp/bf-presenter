@@ -276,6 +276,13 @@ function prepareVideo(layer, item) {
   layer.video.preload = 'auto';
   layer.video.loop = repeatEnabled;
   layer.video.setAttribute('playsinline', '');
+  const ensureAudible = () => {
+    layer.video.muted = false;
+    layer.video.volume = 1;
+    layer.video.removeAttribute('muted');
+  };
+  ensureAudible();
+  layer.video.addEventListener('loadedmetadata', ensureAudible, { once: true });
   showVisual(layer.video);
   return true;
 }
@@ -325,6 +332,13 @@ function showItem(item) {
       audioEl.onerror = (e) => notifyError('Unable to load audio.', e);
       audioEl.src = audioSrc;
       audioEl.loop = repeatEnabled;
+      const ensureAudible = () => {
+        audioEl.muted = false;
+        audioEl.volume = 1;
+        audioEl.removeAttribute('muted');
+      };
+      ensureAudible();
+      audioEl.addEventListener('loadedmetadata', ensureAudible, { once: true });
       try { audioEl.load(); } catch (err) { console.warn('Audio load failed', err); }
     }
 
