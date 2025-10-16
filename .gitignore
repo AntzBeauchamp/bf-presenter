@@ -9,6 +9,7 @@ package-lock.json
 dist/
 build/
 out/
+release/
 .release/
 .releases/
 *.asar
@@ -23,6 +24,9 @@ coverage/
 *.dmg
 *.AppImage
 *.snap
+win-unpacked/
+*-portable.zip
+BF-Presenter-Portable.zip
 
 # OS/IDE
 .DS_Store
@@ -35,7 +39,11 @@ userdata/
 tmp/
 logs/
 *.log
-
-# Portable builds
-BFPresenter-*.zip
-BFPresenter-v1.1.0-Windows-portable.zip
+.idea/
+.DS_Store
+Thumbs.db
+userdata/
+*.log
+dist/
+*.exe
+*.zip
