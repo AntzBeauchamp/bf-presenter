@@ -5,19 +5,19 @@
   "type": "module",
   "scripts": {
     "start": "electron .",
-    "dist:win:portable": "electron-builder --win portable",
-    "dist:win:installer": "electron-builder --win nsis --x64",
-    "dist:win:x64": "electron-builder --win nsis"
+    "preclean:win": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"taskkill /IM 'BF Presenter.exe' /F 2>$null; taskkill /IM electron.exe /F 2>$null; taskkill /IM node.exe /F 2>$null\"",
+    "dist:win:portable": "npm run preclean:win && electron-builder --win portable",
+    "dist:win:zip": "npm run dist:win:portable && powershell -NoProfile -ExecutionPolicy Bypass -Command \"Compress-Archive -Path .\\release\\$env:npm_package_version\\win-unpacked\\* -DestinationPath .\\release\\$env:npm_package_version\\BF-Presenter-Portable.zip -Force\""
   },
   "devDependencies": {
     "electron": "^38.2.1",
     "electron-builder": "26.0.12"
   },
   "build": {
-    "appId": "com.beauchamp.presenter",
+    "appId": "nz.bf.presenter",
     "productName": "BF Presenter",
     "directories": {
-      "output": "dist"
+      "output": "release/${version}"
     },
     "files": [
       "dist/**/*",
@@ -35,7 +35,7 @@
     ],
     "asar": true,
     "win": {
-      "target": "nsis",
+      "target": "portable",
       "icon": "BF_presenter_icon.ico"
     },
     "nsis": {
