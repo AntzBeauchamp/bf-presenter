@@ -69,6 +69,11 @@ function updateRepeatButton() {
   btnRepeatToggle.textContent = isRepeatEnabled ? 'Repeat: On' : 'Repeat: Off';
   btnRepeatToggle.setAttribute('aria-pressed', String(isRepeatEnabled));
   btnRepeatToggle.title = isRepeatEnabled ? 'Repeat on' : 'Repeat off';
+  if (isRepeatEnabled) {
+    btnRepeatToggle.classList.add('repeat-active');
+  } else {
+    btnRepeatToggle.classList.remove('repeat-active');
+  }
 }
 
 btnRepeatToggle.onclick = () => {

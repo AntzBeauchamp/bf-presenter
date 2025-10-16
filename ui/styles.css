@@ -475,3 +475,15 @@ html, body.display {
   outline: 2px dashed rgba(255, 255, 255, 0.35);
   outline-offset: -6px;
 }
+
+@keyframes flashRepeat {
+  0% { box-shadow: 0 0 8px 2px red; border-color: red; }
+  50% { box-shadow: 0 0 8px 2px yellow; border-color: yellow; }
+  100% { box-shadow: 0 0 8px 2px red; border-color: red; }
+}
+
+.repeat-active {
+  animation: flashRepeat 1s infinite;
+  border-width: 2px;
+  background-color: #222;
+}
