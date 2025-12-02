@@ -14,6 +14,11 @@ let currentType = null;
 let swapTimer = null;
 let fallbackTimer = null;
 let playbackToken = 0;
+let seekResetTimer = null;
+let lastSeekedElement = null;
+let clearSeekingHandler = null;
+let isSeeking = false;
+let currentProgramEl = null; // the one true media element for Program playback
 
 let backgroundImagePath = null;
 let isBlanked = false;
@@ -81,8 +86,13 @@ window.presenterAPI.send('display:get-background');
   });
 })();
 
-function sendPlaybackProgressFrom(el) {
+function sendPlaybackProgressFrom(el, from = 'unknown') {
   if (!el) return;
+  const active = getActiveProgramElement();
+
+  // Only send progress for the current Program element; ignore stale/inactive elements.
+  if (!active || el !== active) return;
+
   const currentTime = Number.isFinite(el.currentTime) ? el.currentTime : 0;
   const duration = Number.isFinite(el.duration) ? el.duration : 0;
   window.presenterAPI.send('display:playback-progress', { currentTime, duration });
@@ -90,9 +100,9 @@ function sendPlaybackProgressFrom(el) {
 
 [videoA, videoB, audioEl].forEach((el) => {
   if (!el) return;
-  el.addEventListener('timeupdate', () => sendPlaybackProgressFrom(el));
-  el.addEventListener('loadedmetadata', () => sendPlaybackProgressFrom(el));
-  el.addEventListener('durationchange', () => sendPlaybackProgressFrom(el));
+  el.addEventListener('timeupdate', () => sendPlaybackProgressFrom(el, 'timeupdate'));
+  el.addEventListener('loadedmetadata', () => sendPlaybackProgressFrom(el, 'loadedmetadata'));
+  el.addEventListener('durationchange', () => sendPlaybackProgressFrom(el, 'durationchange'));
 });
 
 function getLayerElements(key) {
@@ -111,14 +121,7 @@ function getInactiveLayer() {
 }
 
 function getActiveProgramElement() {
-  if (currentType === 'video') {
-    const active = typeof getActiveLayer === 'function' ? getActiveLayer() : null;
-    return active && active.video ? active.video : null;
-  }
-  if (currentType === 'audio') {
-    return audioEl || null;
-  }
-  return null;
+  return currentProgramEl || null;
 }
 
 function resetVisualClass(el) {
@@ -254,6 +257,7 @@ function hideAll() {
   stopAudio();
   currentItem = null;
   currentType = null;
+  currentProgramEl = null;
 }
 
 function clearError() {
@@ -348,9 +352,11 @@ function showItem(item) {
 
   if (item.type === 'image') {
     willShowVisual = prepareImage(incoming, item);
+    currentProgramEl = null;
     blackout?.classList.add('hidden');
   } else if (item.type === 'video') {
     willShowVisual = prepareVideo(incoming, item);
+    currentProgramEl = willShowVisual ? incoming.video : null;
     blackout?.classList.add('hidden');
   } else if (item.type === 'audio') {
     const audioSrc = item.url ? item.url : (item.path ? fileUrl(item.path) : null);
@@ -367,6 +373,7 @@ function showItem(item) {
       audioEl.addEventListener('loadedmetadata', ensureAudible, { once: true });
       try { audioEl.load(); } catch (err) { console.warn('Audio load failed', err); }
     }
+    currentProgramEl = audioSrc ? audioEl : null;
 
     if (item.displayImage && incoming?.img) {
       // Show the item-specific image
@@ -380,6 +387,7 @@ function showItem(item) {
       willShowVisual = false;
     }
   } else {
+    currentProgramEl = null;
     notifyError('Unsupported media type.', new Error(item.type));
     return;
   }
@@ -420,6 +428,7 @@ function showItem(item) {
 
 function playCurrent() {
   const { video } = getActiveLayer();
+  console.log('[DISPLAY] playCurrent called', { currentType });
   if (currentType === 'video' && video.classList.contains('show')) {
     video.play().catch((err) => {
       notifyError('Unable to play video.', err);
@@ -441,6 +450,10 @@ function pauseCurrent() {
 }
 
 function onEnded(ev) {
+  if (isSeeking) {
+    return;
+  }
+
   if (repeatEnabled && (currentType === 'video' || currentType === 'audio')) {
     try {
       const el = ev?.target || (currentType === 'video' ? getActiveLayer().video : audioEl);
@@ -452,7 +465,7 @@ function onEnded(ev) {
     return;
   }
 
-  console.log('DISPLAY: media ended → notifying Control');
+  console.log('DISPLAY: media ended');
   window.presenterAPI.send('display:ended');
 
   const tokenAtEnd = playbackToken;
@@ -523,17 +536,37 @@ window.presenterAPI.onProgramEvent('display:seek', (payload) => {
 
   const target = Math.max(0, payload.time);
 
-  let el = null;
-
-  if (currentType === 'video') {
-    const active = getActiveLayer && getActiveLayer();
-    el = active && active.video ? active.video : null;
-  } else if (currentType === 'audio') {
-    el = audioEl;
-  }
-
+  // Handle scrubbing from the Control window.
+  // - Only adjust currentTime on the active program element.
+  // - While a seek is in flight (isSeeking = true), onEnded logic is ignored
+  //   so we don't accidentally restart or reset to 0.
+  const el = getActiveProgramElement();
   if (!el) return;
 
+  isSeeking = true;
+
   const dur = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : null;
-  el.currentTime = dur ? Math.min(target, dur) : target;
+  const clamped = dur ? Math.min(target, dur) : target;
+
+  const clearSeeking = () => {
+    isSeeking = false;
+    if (seekResetTimer) {
+      clearTimeout(seekResetTimer);
+      seekResetTimer = null;
+    }
+  };
+
+  if (clearSeekingHandler && lastSeekedElement) {
+    lastSeekedElement.removeEventListener('seeked', clearSeekingHandler);
+  }
+
+  clearSeekingHandler = clearSeeking;
+  lastSeekedElement = el;
+  el.addEventListener('seeked', clearSeekingHandler, { once: true });
+
+  // Fallback in case 'seeked' doesn't fire (e.g. odd media source)
+  seekResetTimer = window.setTimeout(clearSeeking, 1000);
+
+  console.log('[DISPLAY] Seeking to', clamped);
+  el.currentTime = clamped;
 });

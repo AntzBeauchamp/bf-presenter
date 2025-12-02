@@ -165,6 +165,8 @@ function setupDisplayScrubber() {
     updateFromPercent();
     isDisplayScrubbing = false;
 
+    // display:seek is sent from this control-side handler.
+    console.log('[CONTROL] display:seek sending time', displayCurrentTime, 'duration', displayDuration);
     window.presenterAPI?.send?.('display:seek', { time: displayCurrentTime });
   });
 }
