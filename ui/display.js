@@ -508,18 +508,18 @@ window.presenterAPI.onProgramEvent('display:set-background', (absPath) => {
 window.presenterAPI.onProgramEvent('display:seek', (payload) => {
   if (!payload || typeof payload.time !== 'number' || !Number.isFinite(payload.time)) return;
   const target = Math.max(0, payload.time);
+
+  let el = null;
+
   if (currentType === 'video') {
-    const { video } = getActiveLayer();
-    if (video && Number.isFinite(video.duration) && video.duration > 0) {
-      video.currentTime = Math.min(target, video.duration);
-    } else if (video) {
-      video.currentTime = target;
-    }
+    const active = getActiveLayer && getActiveLayer();
+    el = active && active.video ? active.video : null;
   } else if (currentType === 'audio') {
-    if (audioEl && Number.isFinite(audioEl.duration) && audioEl.duration > 0) {
-      audioEl.currentTime = Math.min(target, audioEl.duration);
-    } else if (audioEl) {
-      audioEl.currentTime = target;
-    }
+    el = audioEl;
   }
+
+  if (!el) return;
+
+  const dur = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : null;
+  el.currentTime = dur ? Math.min(target, dur) : target;
 });

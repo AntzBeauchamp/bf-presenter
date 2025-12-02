@@ -16,14 +16,11 @@
         <header>
           <div class="program-header-left">
             <strong>Display</strong>
-            <span id="programTimeLabel" class="program-time-label">0:00 / 0:00</span>
+            <span id="displayTimeLabel" class="program-time-label">0:00 / 0:00</span>
           </div>
         </header>
         <div class="program-progress-wrapper">
-          <div class="program-progress-track" id="programProgressTrack">
-            <div class="program-progress-fill" id="programProgressFill"></div>
-            <div class="program-progress-handle" id="programProgressHandle"></div>
-          </div>
+          <input id="displayScrubber" type="range" min="0" max="100" step="0.1" value="0" />
         </div>
       </section>
 
@@ -35,12 +32,6 @@
             <button id="btnClearPreview" title="Clear preview">Clear</button>
           </div>
         </header>
-        <div class="program-progress-wrapper">
-          <div class="program-progress-track" id="programProgressTrack">
-            <div class="program-progress-fill" id="programProgressFill"></div>
-            <div class="program-progress-handle" id="programProgressHandle"></div>
-          </div>
-        </div>
         <div class="preview-stage" id="previewArea"></div>
       </section>
 
