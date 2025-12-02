@@ -522,21 +522,18 @@ window.presenterAPI.onProgramEvent('display:seek', (payload) => {
   }
 
   const target = Math.max(0, payload.time);
-  const el = getActiveProgramElement();
-  if (!el) {
-    console.warn('[DISPLAY] display:seek received with no active media element');
-    return;
+
+  let el = null;
+
+  if (currentType === 'video') {
+    const active = getActiveLayer && getActiveLayer();
+    el = active && active.video ? active.video : null;
+  } else if (currentType === 'audio') {
+    el = audioEl;
   }
 
+  if (!el) return;
+
   const dur = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : null;
-  const clamped = dur ? Math.min(target, dur) : target;
-
-  console.log('[DISPLAY] Seeking to', clamped, 'of duration', dur);
-
-  el.currentTime = clamped;
-
-  window.presenterAPI.send('display:playback-progress', {
-    currentTime: clamped,
-    duration: dur || 0
-  });
+  el.currentTime = dur ? Math.min(target, dur) : target;
 });

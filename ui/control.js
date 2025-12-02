@@ -166,7 +166,6 @@ function setupDisplayScrubber() {
     isDisplayScrubbing = false;
 
     window.presenterAPI?.send?.('display:seek', { time: displayCurrentTime });
-    console.log('[CONTROL] Sending display:seek', displayCurrentTime, 'of duration', displayDuration);
   });
 }
 
