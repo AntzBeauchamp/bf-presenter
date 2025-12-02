@@ -51,7 +51,7 @@ button:active {
 
 .right-panel {
   display: grid;
-  grid-template-rows: 1fr 0.8fr;
+  grid-template-rows: auto 1fr 0.8fr;
   gap: 16px;
   min-height: 0;
 }
