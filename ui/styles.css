@@ -111,43 +111,28 @@ button:active {
   min-height: 0;
 }
 
-.program-card {
-  min-height: auto;
-}
-
-.program-header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.program-time-label {
-  font-weight: 400;
-  font-size: 0.9rem;
-  color: #bbb;
-}
-
 .program-progress-wrapper {
-  padding: 10px 12px 12px;
-  background: #070707;
+  padding: 6px 10px;
+  border-top: 1px solid #1e1e1e;
+  border-bottom: 1px solid #1e1e1e;
+  background: #0b0b0b;
+  flex: 0 0 auto;
 }
 
 .program-progress-track {
   position: relative;
   height: 6px;
   border-radius: 999px;
-  background: #2a2a2a;
+  background: #222;
   cursor: pointer;
 }
 
 .program-progress-fill {
   position: absolute;
-  height: 100%;
-  left: 0;
-  top: 0;
+  inset: 0;
   width: 0%;
   border-radius: inherit;
-  background: #cccccc;
+  background: #3a86ff;
 }
 
 .program-progress-handle {

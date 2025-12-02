@@ -16,10 +16,9 @@ const previewArea = document.getElementById('previewArea');
 const nextUpArea = document.getElementById('nextUpArea');
 const leftPanel = document.querySelector('.left-panel');
 
-const programTimeLabel = document.getElementById('programTimeLabel');
-const programProgressTrack = document.getElementById('programProgressTrack');
-const programProgressFill = document.getElementById('programProgressFill');
-const programProgressHandle = document.getElementById('programProgressHandle');
+const progressTrack = document.getElementById('programProgressTrack');
+const progressFill = document.getElementById('programProgressFill');
+const progressHandle = document.getElementById('programProgressHandle');
 
 const loggerBody = document.getElementById('loggerBody');
 const loggerCard = document.getElementById('loggerCard');
@@ -46,7 +45,7 @@ let draggingId = null;
 
 let programDuration = 0;
 let programCurrentTime = 0;
-let isProgramScrubbing = false;
+let isScrubbingProgram = false;
 
 function indexById(arr, id) {
   return arr.findIndex((m) => m.id === id);
@@ -123,16 +122,8 @@ function tsString(ts) {
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}.${ms}`;
 }
 
-function formatTimeSeconds(sec) {
-  if (!Number.isFinite(sec) || sec < 0) sec = 0;
-  const total = Math.floor(sec);
-  const minutes = Math.floor(total / 60);
-  const seconds = total % 60;
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-}
-
 function updateProgramProgressUI() {
-  if (!programProgressTrack || !programProgressFill || !programProgressHandle) return;
+  if (!progressTrack || !progressFill || !progressHandle) return;
   const duration = programDuration > 0 ? programDuration : 0;
   const current = Math.max(0, Math.min(programCurrentTime, duration || programCurrentTime || 0));
   const ratio = duration > 0 ? current / duration : 0;
@@ -140,39 +131,33 @@ function updateProgramProgressUI() {
   const clamped = Math.max(0, Math.min(ratio, 1));
   const percent = clamped * 100;
 
-  programProgressFill.style.width = `${percent}%`;
-  programProgressHandle.style.left = `${percent}%`;
-
-  if (programTimeLabel) {
-    const left = formatTimeSeconds(current);
-    const right = formatTimeSeconds(duration);
-    programTimeLabel.textContent = `${left} / ${right}`;
-  }
+  progressFill.style.width = `${percent}%`;
+  progressHandle.style.left = `${percent}%`;
 }
 
-function getProgramTimeFromEvent(evt) {
-  if (!programProgressTrack || programDuration <= 0) return 0;
-  const rect = programProgressTrack.getBoundingClientRect();
+function timeFromProgressEvent(evt) {
+  if (!progressTrack || programDuration <= 0) return 0;
+  const rect = progressTrack.getBoundingClientRect();
   if (!rect.width) return 0;
   const x = Math.max(rect.left, Math.min(evt.clientX, rect.right));
   const ratio = (x - rect.left) / rect.width;
   return Math.max(0, Math.min(programDuration, ratio * programDuration));
 }
 
-if (programProgressTrack) {
+if (progressTrack) {
   const handlePointerMove = (evt) => {
-    if (!isProgramScrubbing) return;
-    const t = getProgramTimeFromEvent(evt);
+    if (!isScrubbingProgram) return;
+    const t = timeFromProgressEvent(evt);
     programCurrentTime = t;
     updateProgramProgressUI();
   };
 
   const handlePointerUp = (evt) => {
-    if (!isProgramScrubbing) return;
-    const t = getProgramTimeFromEvent(evt);
+    if (!isScrubbingProgram) return;
+    const t = timeFromProgressEvent(evt);
     programCurrentTime = t;
     updateProgramProgressUI();
-    isProgramScrubbing = false;
+    isScrubbingProgram = false;
 
     document.removeEventListener('pointermove', handlePointerMove);
     document.removeEventListener('pointerup', handlePointerUp);
@@ -180,11 +165,11 @@ if (programProgressTrack) {
     window.presenterAPI?.send?.('display:seek', { time: t });
   };
 
-  programProgressTrack.addEventListener('pointerdown', (evt) => {
+  progressTrack.addEventListener('pointerdown', (evt) => {
     if (programDuration <= 0) return;
-    isProgramScrubbing = true;
-    programProgressTrack.setPointerCapture?.(evt.pointerId);
-    const t = getProgramTimeFromEvent(evt);
+    isScrubbingProgram = true;
+    progressTrack.setPointerCapture?.(evt.pointerId);
+    const t = timeFromProgressEvent(evt);
     programCurrentTime = t;
     updateProgramProgressUI();
 
@@ -965,12 +950,8 @@ if (nextUpArea) {
 
 window.presenterAPI?.onProgramEvent?.('display:playback-progress', (payload) => {
   if (!payload || typeof payload.currentTime !== 'number' || typeof payload.duration !== 'number') return;
-  const dur = Math.max(0, payload.duration);
-  if (dur > 0 || payload.duration === 0) {
-    programDuration = dur;
-  }
-
-  if (!isProgramScrubbing) {
+  programDuration = Math.max(0, payload.duration);
+  if (!isScrubbingProgram) {
     programCurrentTime = Math.max(0, payload.currentTime);
     updateProgramProgressUI();
   }
