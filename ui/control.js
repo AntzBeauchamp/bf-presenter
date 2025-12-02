@@ -16,6 +16,10 @@ const previewArea = document.getElementById('previewArea');
 const nextUpArea = document.getElementById('nextUpArea');
 const leftPanel = document.querySelector('.left-panel');
 
+const progressTrack = document.getElementById('programProgressTrack');
+const progressFill = document.getElementById('programProgressFill');
+const progressHandle = document.getElementById('programProgressHandle');
+
 const loggerBody = document.getElementById('loggerBody');
 const loggerCard = document.getElementById('loggerCard');
 const loggerCountEl = document.getElementById('loggerCount');
@@ -38,6 +42,10 @@ const logBuffer = [];
 const selectedMediaIds = new Set();
 
 let draggingId = null;
+
+let programDuration = 0;
+let programCurrentTime = 0;
+let isScrubbingProgram = false;
 
 function indexById(arr, id) {
   return arr.findIndex((m) => m.id === id);
@@ -84,6 +92,7 @@ btnRepeatToggle.onclick = () => {
 
 updatePlayToggleUI(false);
 updateRepeatButton();
+updateProgramProgressUI();
 
 function fileUrl(p) {
   try {
@@ -111,6 +120,62 @@ function tsString(ts) {
   const d = new Date(ts);
   const ms = d.getMilliseconds().toString().padStart(3, '0');
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}.${ms}`;
+}
+
+function updateProgramProgressUI() {
+  if (!progressTrack || !progressFill || !progressHandle) return;
+  const duration = programDuration > 0 ? programDuration : 0;
+  const current = Math.max(0, Math.min(programCurrentTime, duration || programCurrentTime || 0));
+  const ratio = duration > 0 ? current / duration : 0;
+
+  const clamped = Math.max(0, Math.min(ratio, 1));
+  const percent = clamped * 100;
+
+  progressFill.style.width = `${percent}%`;
+  progressHandle.style.left = `${percent}%`;
+}
+
+function timeFromProgressEvent(evt) {
+  if (!progressTrack || programDuration <= 0) return 0;
+  const rect = progressTrack.getBoundingClientRect();
+  if (!rect.width) return 0;
+  const x = Math.max(rect.left, Math.min(evt.clientX, rect.right));
+  const ratio = (x - rect.left) / rect.width;
+  return Math.max(0, Math.min(programDuration, ratio * programDuration));
+}
+
+if (progressTrack) {
+  const handlePointerMove = (evt) => {
+    if (!isScrubbingProgram) return;
+    const t = timeFromProgressEvent(evt);
+    programCurrentTime = t;
+    updateProgramProgressUI();
+  };
+
+  const handlePointerUp = (evt) => {
+    if (!isScrubbingProgram) return;
+    const t = timeFromProgressEvent(evt);
+    programCurrentTime = t;
+    updateProgramProgressUI();
+    isScrubbingProgram = false;
+
+    document.removeEventListener('pointermove', handlePointerMove);
+    document.removeEventListener('pointerup', handlePointerUp);
+
+    window.presenterAPI?.send?.('display:seek', { time: t });
+  };
+
+  progressTrack.addEventListener('pointerdown', (evt) => {
+    if (programDuration <= 0) return;
+    isScrubbingProgram = true;
+    progressTrack.setPointerCapture?.(evt.pointerId);
+    const t = timeFromProgressEvent(evt);
+    programCurrentTime = t;
+    updateProgramProgressUI();
+
+    document.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('pointerup', handlePointerUp);
+  });
 }
 
 function appendLog(entry) {
@@ -883,6 +948,15 @@ if (nextUpArea) {
   });
 }
 
+window.presenterAPI?.onProgramEvent?.('display:playback-progress', (payload) => {
+  if (!payload || typeof payload.currentTime !== 'number' || typeof payload.duration !== 'number') return;
+  programDuration = Math.max(0, payload.duration);
+  if (!isScrubbingProgram) {
+    programCurrentTime = Math.max(0, payload.currentTime);
+    updateProgramProgressUI();
+  }
+});
+
 window.presenterAPI?.onProgramEvent?.('display:ended', () => {
   console.log('CONTROL: Display finished playback, advancing media');
   const pushed = pushAtomicFromPreviewAndBackfill();
@@ -897,6 +971,10 @@ window.presenterAPI?.onProgramEvent?.('display:ended', () => {
   if (!previewId && !nextUpId) {
     console.log('CONTROL: No Preview or Next Up — show fallback background');
   }
+
+  programDuration = 0;
+  programCurrentTime = 0;
+  updateProgramProgressUI();
 });
 
 renderNextUp(null);
