@@ -14,6 +14,10 @@ let currentType = null;
 let swapTimer = null;
 let fallbackTimer = null;
 let playbackToken = 0;
+let seekResetTimer = null;
+let lastSeekedElement = null;
+let clearSeekingHandler = null;
+let isSeeking = false;
 
 let backgroundImagePath = null;
 let isBlanked = false;
@@ -450,6 +454,10 @@ function pauseCurrent() {
 }
 
 function onEnded(ev) {
+  if (isSeeking) {
+    return;
+  }
+
   if (repeatEnabled && (currentType === 'video' || currentType === 'audio')) {
     try {
       const el = ev?.target || (currentType === 'video' ? getActiveLayer().video : audioEl);
@@ -547,6 +555,30 @@ window.presenterAPI.onProgramEvent('display:seek', (payload) => {
 
   if (!el) return;
 
+  isSeeking = true;
+
   const dur = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : null;
-  el.currentTime = dur ? Math.min(target, dur) : target;
+  const clamped = dur ? Math.min(target, dur) : target;
+
+  const clearSeeking = () => {
+    isSeeking = false;
+    if (seekResetTimer) {
+      clearTimeout(seekResetTimer);
+      seekResetTimer = null;
+    }
+  };
+
+  if (clearSeekingHandler && lastSeekedElement) {
+    lastSeekedElement.removeEventListener('seeked', clearSeekingHandler);
+  }
+
+  clearSeekingHandler = clearSeeking;
+  lastSeekedElement = el;
+  el.addEventListener('seeked', clearSeekingHandler, { once: true });
+
+  // FIX: seeking should not trigger restart logic. Track the in-flight seek and
+  // clear the flag once the media reports it has settled.
+  seekResetTimer = window.setTimeout(clearSeeking, 1000);
+
+  el.currentTime = clamped;
 });
