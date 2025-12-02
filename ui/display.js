@@ -18,7 +18,6 @@ let seekResetTimer = null;
 let lastSeekedElement = null;
 let clearSeekingHandler = null;
 let isSeeking = false;
-let currentProgramEl = null; // the one true media element for Program playback
 
 let backgroundImagePath = null;
 let isBlanked = false;
@@ -90,11 +89,13 @@ function sendPlaybackProgressFrom(el, from = 'unknown') {
   if (!el) return;
   const active = getActiveProgramElement();
 
-  // Only send progress for the current Program element; ignore stale/inactive elements.
-  if (!active || el !== active) return;
+  // FIX: only report progress for the active program element so stale 0,0 events
+  // from cleared layers don't override scrubbing state on the control side.
+  if (active && el !== active) return;
 
   const currentTime = Number.isFinite(el.currentTime) ? el.currentTime : 0;
   const duration = Number.isFinite(el.duration) ? el.duration : 0;
+  console.log('[DISPLAY] playback-progress', { from, currentTime, duration });
   window.presenterAPI.send('display:playback-progress', { currentTime, duration });
 }
 
@@ -329,6 +330,7 @@ function showItem(item) {
   resetSwapTimer();
 
   if (!item) {
+    console.log('[DISPLAY] resetting media or progress here', { reason: 'no-item' });
     window.presenterAPI.send('display:playback-progress', { currentTime: 0, duration: 0 });
     hideAll();
     if (!isBlanked && backgroundImagePath) {
@@ -458,6 +460,7 @@ function onEnded(ev) {
     try {
       const el = ev?.target || (currentType === 'video' ? getActiveLayer().video : audioEl);
       if (el) {
+        console.log('[DISPLAY] resetting media or progress here', { reason: 'repeat-ended' });
         el.currentTime = 0;
         el.play().catch(() => {});
       }
@@ -536,12 +539,29 @@ window.presenterAPI.onProgramEvent('display:seek', (payload) => {
 
   const target = Math.max(0, payload.time);
 
-  // Handle scrubbing from the Control window.
-  // - Only adjust currentTime on the active program element.
-  // - While a seek is in flight (isSeeking = true), onEnded logic is ignored
-  //   so we don't accidentally restart or reset to 0.
-  const el = getActiveProgramElement();
-  if (!el) return;
+  // display:seek is handled only in this block on the Display window.
+  console.log('[DISPLAY] display:seek received time', target);
+
+  let el = null;
+
+  const dur = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : null;
+  const clamped = dur ? Math.min(target, dur) : target;
+
+  const clearSeeking = () => {
+    isSeeking = false;
+    if (seekResetTimer) {
+      clearTimeout(seekResetTimer);
+      seekResetTimer = null;
+    }
+  };
+
+  if (clearSeekingHandler && lastSeekedElement) {
+    lastSeekedElement.removeEventListener('seeked', clearSeekingHandler);
+  }
+
+  clearSeekingHandler = clearSeeking;
+  lastSeekedElement = el;
+  el.addEventListener('seeked', clearSeekingHandler, { once: true });
 
   isSeeking = true;
 
@@ -564,9 +584,9 @@ window.presenterAPI.onProgramEvent('display:seek', (payload) => {
   lastSeekedElement = el;
   el.addEventListener('seeked', clearSeekingHandler, { once: true });
 
-  // Fallback in case 'seeked' doesn't fire (e.g. odd media source)
+  // FIX: seeking should not trigger restart logic. Track the in-flight seek and
+  // clear the flag once the media reports it has settled.
   seekResetTimer = window.setTimeout(clearSeeking, 1000);
 
-  console.log('[DISPLAY] Seeking to', clamped);
   el.currentTime = clamped;
 });
