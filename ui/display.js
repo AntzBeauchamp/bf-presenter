@@ -14,6 +14,10 @@ let currentType = null;
 let swapTimer = null;
 let fallbackTimer = null;
 let playbackToken = 0;
+let seekResetTimer = null;
+let lastSeekedElement = null;
+let clearSeekingHandler = null;
+let isSeeking = false;
 
 let backgroundImagePath = null;
 let isBlanked = false;
@@ -81,18 +85,25 @@ window.presenterAPI.send('display:get-background');
   });
 })();
 
-function sendPlaybackProgressFrom(el) {
+function sendPlaybackProgressFrom(el, from = 'unknown') {
   if (!el) return;
+  const active = getActiveProgramElement();
+
+  // FIX: only report progress for the active program element so stale 0,0 events
+  // from cleared layers don't override scrubbing state on the control side.
+  if (active && el !== active) return;
+
   const currentTime = Number.isFinite(el.currentTime) ? el.currentTime : 0;
   const duration = Number.isFinite(el.duration) ? el.duration : 0;
+  console.log('[DISPLAY] playback-progress', { from, currentTime, duration });
   window.presenterAPI.send('display:playback-progress', { currentTime, duration });
 }
 
 [videoA, videoB, audioEl].forEach((el) => {
   if (!el) return;
-  el.addEventListener('timeupdate', () => sendPlaybackProgressFrom(el));
-  el.addEventListener('loadedmetadata', () => sendPlaybackProgressFrom(el));
-  el.addEventListener('durationchange', () => sendPlaybackProgressFrom(el));
+  el.addEventListener('timeupdate', () => sendPlaybackProgressFrom(el, 'timeupdate'));
+  el.addEventListener('loadedmetadata', () => sendPlaybackProgressFrom(el, 'loadedmetadata'));
+  el.addEventListener('durationchange', () => sendPlaybackProgressFrom(el, 'durationchange'));
 });
 
 function getLayerElements(key) {
@@ -325,6 +336,7 @@ function showItem(item) {
   resetSwapTimer();
 
   if (!item) {
+    console.log('[DISPLAY] resetting media or progress here', { reason: 'no-item' });
     window.presenterAPI.send('display:playback-progress', { currentTime: 0, duration: 0 });
     hideAll();
     if (!isBlanked && backgroundImagePath) {
@@ -420,6 +432,7 @@ function showItem(item) {
 
 function playCurrent() {
   const { video } = getActiveLayer();
+  console.log('[DISPLAY] playCurrent called', { currentType });
   if (currentType === 'video' && video.classList.contains('show')) {
     video.play().catch((err) => {
       notifyError('Unable to play video.', err);
@@ -441,10 +454,15 @@ function pauseCurrent() {
 }
 
 function onEnded(ev) {
+  if (isSeeking) {
+    return;
+  }
+
   if (repeatEnabled && (currentType === 'video' || currentType === 'audio')) {
     try {
       const el = ev?.target || (currentType === 'video' ? getActiveLayer().video : audioEl);
       if (el) {
+        console.log('[DISPLAY] resetting media or progress here', { reason: 'repeat-ended' });
         el.currentTime = 0;
         el.play().catch(() => {});
       }
@@ -523,6 +541,9 @@ window.presenterAPI.onProgramEvent('display:seek', (payload) => {
 
   const target = Math.max(0, payload.time);
 
+  // display:seek is handled only in this block on the Display window.
+  console.log('[DISPLAY] display:seek received time', target);
+
   let el = null;
 
   if (currentType === 'video') {
@@ -534,6 +555,30 @@ window.presenterAPI.onProgramEvent('display:seek', (payload) => {
 
   if (!el) return;
 
+  isSeeking = true;
+
   const dur = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : null;
-  el.currentTime = dur ? Math.min(target, dur) : target;
+  const clamped = dur ? Math.min(target, dur) : target;
+
+  const clearSeeking = () => {
+    isSeeking = false;
+    if (seekResetTimer) {
+      clearTimeout(seekResetTimer);
+      seekResetTimer = null;
+    }
+  };
+
+  if (clearSeekingHandler && lastSeekedElement) {
+    lastSeekedElement.removeEventListener('seeked', clearSeekingHandler);
+  }
+
+  clearSeekingHandler = clearSeeking;
+  lastSeekedElement = el;
+  el.addEventListener('seeked', clearSeekingHandler, { once: true });
+
+  // FIX: seeking should not trigger restart logic. Track the in-flight seek and
+  // clear the flag once the media reports it has settled.
+  seekResetTimer = window.setTimeout(clearSeeking, 1000);
+
+  el.currentTime = clamped;
 });

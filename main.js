@@ -284,6 +284,8 @@ ipcMain.on('display:play', () => {
   if (displayWin && !displayWin.isDestroyed()) displayWin.webContents.send('display:play');
 });
 ipcMain.on('display:seek', (_evt, payload) => {
+  // display:seek is forwarded from Control to the Display window here.
+  console.log('[MAIN] forwarding display:seek', payload);
   if (displayWin && !displayWin.isDestroyed()) displayWin.webContents.send('display:seek', payload);
 });
 ipcMain.on('display:ended', () => {
