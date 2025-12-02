@@ -110,6 +110,17 @@ function getInactiveLayer() {
   return getLayerElements(inactiveKey);
 }
 
+function getActiveProgramElement() {
+  if (currentType === 'video') {
+    const active = typeof getActiveLayer === 'function' ? getActiveLayer() : null;
+    return active && active.video ? active.video : null;
+  }
+  if (currentType === 'audio') {
+    return audioEl || null;
+  }
+  return null;
+}
+
 function resetVisualClass(el) {
   if (!el) return;
   el.className = 'visual';
@@ -506,7 +517,10 @@ window.presenterAPI.onProgramEvent('display:set-background', (absPath) => {
 });
 
 window.presenterAPI.onProgramEvent('display:seek', (payload) => {
-  if (!payload || typeof payload.time !== 'number' || !Number.isFinite(payload.time)) return;
+  if (!payload || typeof payload.time !== 'number' || !Number.isFinite(payload.time)) {
+    return;
+  }
+
   const target = Math.max(0, payload.time);
 
   let el = null;
