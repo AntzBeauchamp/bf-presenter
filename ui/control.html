@@ -12,6 +12,24 @@
     </div>
 
     <div class="right-panel">
+      <section class="card display-card">
+        <header class="display-header">
+          <span class="display-title">Display</span>
+          <span id="displayTimeLabel" class="display-time">0:00 / 0:00</span>
+        </header>
+        <div class="display-progress-row">
+          <input
+            id="displayScrubber"
+            type="range"
+            min="0"
+            max="100"
+            step="0.1"
+            value="0"
+            class="display-scrubber"
+          />
+        </div>
+      </section>
+
       <section class="card preview-card">
         <header>
           Preview

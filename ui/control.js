@@ -16,6 +16,9 @@ const previewArea = document.getElementById('previewArea');
 const nextUpArea = document.getElementById('nextUpArea');
 const leftPanel = document.querySelector('.left-panel');
 
+const displayScrubber = document.getElementById('displayScrubber');
+const displayTimeLabel = document.getElementById('displayTimeLabel');
+
 const loggerBody = document.getElementById('loggerBody');
 const loggerCard = document.getElementById('loggerCard');
 const loggerCountEl = document.getElementById('loggerCount');
@@ -38,6 +41,10 @@ const logBuffer = [];
 const selectedMediaIds = new Set();
 
 let draggingId = null;
+
+let displayDuration = 0;
+let displayCurrentTime = 0;
+let isDisplayScrubbing = false;
 
 function indexById(arr, id) {
   return arr.findIndex((m) => m.id === id);
@@ -84,6 +91,7 @@ btnRepeatToggle.onclick = () => {
 
 updatePlayToggleUI(false);
 updateRepeatButton();
+updateDisplayUI();
 
 function fileUrl(p) {
   try {
@@ -111,6 +119,50 @@ function tsString(ts) {
   const d = new Date(ts);
   const ms = d.getMilliseconds().toString().padStart(3, '0');
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}.${ms}`;
+}
+
+function formatTime(sec) {
+  if (!Number.isFinite(sec) || sec < 0) sec = 0;
+  const total = Math.floor(sec);
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function updateDisplayUI() {
+  if (!displayScrubber || !displayTimeLabel) return;
+
+  const duration = displayDuration > 0 ? displayDuration : 0;
+  const current = Math.max(0, Math.min(displayCurrentTime, duration || displayCurrentTime || 0));
+  const ratio = duration > 0 ? current / duration : 0;
+  const percent = Math.max(0, Math.min(ratio, 1)) * 100;
+
+  displayScrubber.value = String(percent);
+  displayTimeLabel.textContent = `${formatTime(current)} / ${formatTime(duration)}`;
+}
+
+if (displayScrubber) {
+  const updateFromPercent = () => {
+    const percent = parseFloat(displayScrubber.value) || 0;
+    const ratio = Math.max(0, Math.min(percent / 100, 1));
+    if (displayDuration > 0) {
+      displayCurrentTime = displayDuration * ratio;
+    } else {
+      displayCurrentTime = 0;
+    }
+    updateDisplayUI();
+  };
+
+  displayScrubber.addEventListener('input', () => {
+    isDisplayScrubbing = true;
+    updateFromPercent();
+  });
+
+  displayScrubber.addEventListener('change', () => {
+    updateFromPercent();
+    isDisplayScrubbing = false;
+    window.presenterAPI?.send?.('display:seek', { time: displayCurrentTime });
+  });
 }
 
 function appendLog(entry) {
@@ -883,6 +935,19 @@ if (nextUpArea) {
   });
 }
 
+window.presenterAPI?.onProgramEvent?.('display:playback-progress', (payload) => {
+  if (!payload || typeof payload.currentTime !== 'number' || typeof payload.duration !== 'number') return;
+  const dur = Math.max(0, payload.duration);
+  if (dur > 0 || payload.duration === 0) {
+    displayDuration = dur;
+  }
+
+  if (!isDisplayScrubbing) {
+    displayCurrentTime = Math.max(0, payload.currentTime);
+    updateDisplayUI();
+  }
+});
+
 window.presenterAPI?.onProgramEvent?.('display:ended', () => {
   console.log('CONTROL: Display finished playback, advancing media');
   const pushed = pushAtomicFromPreviewAndBackfill();
@@ -897,6 +962,10 @@ window.presenterAPI?.onProgramEvent?.('display:ended', () => {
   if (!previewId && !nextUpId) {
     console.log('CONTROL: No Preview or Next Up — show fallback background');
   }
+
+  displayDuration = 0;
+  displayCurrentTime = 0;
+  updateDisplayUI();
 });
 
 renderNextUp(null);

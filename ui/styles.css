@@ -51,7 +51,7 @@ button:active {
 
 .right-panel {
   display: grid;
-  grid-template-rows: 1fr 0.8fr;
+  grid-template-rows: auto 1fr 0.8fr;
   gap: 16px;
   min-height: 0;
 }
@@ -70,6 +70,8 @@ button:active {
 }
 .preview-card {
   min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .card > header {
@@ -106,6 +108,80 @@ button:active {
   display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 0;
+}
+
+
+.display-card {
+  padding: 6px 10px 8px;
+  min-height: 0;
+}
+
+.display-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.display-title {
+  font-weight: 600;
+}
+
+.display-time {
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+.display-progress-row {
+  display: flex;
+  align-items: center;
+}
+
+.display-scrubber {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: #d0d0d0;
+  outline: none;
+  margin: 0;
+}
+
+.display-scrubber::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: #d0d0d0;
+}
+
+.display-scrubber::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: #d0d0d0;
+}
+
+.display-scrubber::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid #999;
+  margin-top: -3px;
+}
+
+.display-scrubber::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid #999;
+}
+
+.preview-card .preview-stage {
+  flex: 1 1 auto;
   min-height: 0;
 }
 
