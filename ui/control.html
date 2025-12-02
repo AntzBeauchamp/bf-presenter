@@ -12,21 +12,18 @@
     </div>
 
     <div class="right-panel">
-      <section class="card display-card">
-        <header class="display-header">
-          <span class="display-title">Display</span>
-          <span id="displayTimeLabel" class="display-time">0:00 / 0:00</span>
+      <section class="card program-card">
+        <header>
+          <div class="program-header-left">
+            <strong>Display</strong>
+            <span id="programTimeLabel" class="program-time-label">0:00 / 0:00</span>
+          </div>
         </header>
-        <div class="display-progress-row">
-          <input
-            id="displayScrubber"
-            type="range"
-            min="0"
-            max="100"
-            step="0.1"
-            value="0"
-            class="display-scrubber"
-          />
+        <div class="program-progress-wrapper">
+          <div class="program-progress-track" id="programProgressTrack">
+            <div class="program-progress-fill" id="programProgressFill"></div>
+            <div class="program-progress-handle" id="programProgressHandle"></div>
+          </div>
         </div>
       </section>
 
@@ -38,6 +35,12 @@
             <button id="btnClearPreview" title="Clear preview">Clear</button>
           </div>
         </header>
+        <div class="program-progress-wrapper">
+          <div class="program-progress-track" id="programProgressTrack">
+            <div class="program-progress-fill" id="programProgressFill"></div>
+            <div class="program-progress-handle" id="programProgressHandle"></div>
+          </div>
+        </div>
         <div class="preview-stage" id="previewArea"></div>
       </section>
 

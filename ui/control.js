@@ -16,8 +16,9 @@ const previewArea = document.getElementById('previewArea');
 const nextUpArea = document.getElementById('nextUpArea');
 const leftPanel = document.querySelector('.left-panel');
 
-const displayScrubber = document.getElementById('displayScrubber');
-const displayTimeLabel = document.getElementById('displayTimeLabel');
+const progressTrack = document.getElementById('programProgressTrack');
+const progressFill = document.getElementById('programProgressFill');
+const progressHandle = document.getElementById('programProgressHandle');
 
 const loggerBody = document.getElementById('loggerBody');
 const loggerCard = document.getElementById('loggerCard');
@@ -42,9 +43,9 @@ const selectedMediaIds = new Set();
 
 let draggingId = null;
 
-let displayDuration = 0;
-let displayCurrentTime = 0;
-let isDisplayScrubbing = false;
+let programDuration = 0;
+let programCurrentTime = 0;
+let isScrubbingProgram = false;
 
 function indexById(arr, id) {
   return arr.findIndex((m) => m.id === id);
@@ -91,7 +92,7 @@ btnRepeatToggle.onclick = () => {
 
 updatePlayToggleUI(false);
 updateRepeatButton();
-updateDisplayUI();
+updateProgramProgressUI();
 
 function fileUrl(p) {
   try {
@@ -121,47 +122,59 @@ function tsString(ts) {
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}.${ms}`;
 }
 
-function formatTime(sec) {
-  if (!Number.isFinite(sec) || sec < 0) sec = 0;
-  const total = Math.floor(sec);
-  const minutes = Math.floor(total / 60);
-  const seconds = total % 60;
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-}
-
-function updateDisplayUI() {
-  if (!displayScrubber || !displayTimeLabel) return;
-
-  const duration = displayDuration > 0 ? displayDuration : 0;
-  const current = Math.max(0, Math.min(displayCurrentTime, duration || displayCurrentTime || 0));
+function updateProgramProgressUI() {
+  if (!progressTrack || !progressFill || !progressHandle) return;
+  const duration = programDuration > 0 ? programDuration : 0;
+  const current = Math.max(0, Math.min(programCurrentTime, duration || programCurrentTime || 0));
   const ratio = duration > 0 ? current / duration : 0;
-  const percent = Math.max(0, Math.min(ratio, 1)) * 100;
 
-  displayScrubber.value = String(percent);
-  displayTimeLabel.textContent = `${formatTime(current)} / ${formatTime(duration)}`;
+  const clamped = Math.max(0, Math.min(ratio, 1));
+  const percent = clamped * 100;
+
+  progressFill.style.width = `${percent}%`;
+  progressHandle.style.left = `${percent}%`;
 }
 
-if (displayScrubber) {
-  const updateFromPercent = () => {
-    const percent = parseFloat(displayScrubber.value) || 0;
-    const ratio = Math.max(0, Math.min(percent / 100, 1));
-    if (displayDuration > 0) {
-      displayCurrentTime = displayDuration * ratio;
-    } else {
-      displayCurrentTime = 0;
-    }
-    updateDisplayUI();
+function timeFromProgressEvent(evt) {
+  if (!progressTrack || programDuration <= 0) return 0;
+  const rect = progressTrack.getBoundingClientRect();
+  if (!rect.width) return 0;
+  const x = Math.max(rect.left, Math.min(evt.clientX, rect.right));
+  const ratio = (x - rect.left) / rect.width;
+  return Math.max(0, Math.min(programDuration, ratio * programDuration));
+}
+
+if (progressTrack) {
+  const handlePointerMove = (evt) => {
+    if (!isScrubbingProgram) return;
+    const t = timeFromProgressEvent(evt);
+    programCurrentTime = t;
+    updateProgramProgressUI();
   };
 
-  displayScrubber.addEventListener('input', () => {
-    isDisplayScrubbing = true;
-    updateFromPercent();
-  });
+  const handlePointerUp = (evt) => {
+    if (!isScrubbingProgram) return;
+    const t = timeFromProgressEvent(evt);
+    programCurrentTime = t;
+    updateProgramProgressUI();
+    isScrubbingProgram = false;
 
-  displayScrubber.addEventListener('change', () => {
-    updateFromPercent();
-    isDisplayScrubbing = false;
-    window.presenterAPI?.send?.('display:seek', { time: displayCurrentTime });
+    document.removeEventListener('pointermove', handlePointerMove);
+    document.removeEventListener('pointerup', handlePointerUp);
+
+    window.presenterAPI?.send?.('display:seek', { time: t });
+  };
+
+  progressTrack.addEventListener('pointerdown', (evt) => {
+    if (programDuration <= 0) return;
+    isScrubbingProgram = true;
+    progressTrack.setPointerCapture?.(evt.pointerId);
+    const t = timeFromProgressEvent(evt);
+    programCurrentTime = t;
+    updateProgramProgressUI();
+
+    document.addEventListener('pointermove', handlePointerMove);
+    document.addEventListener('pointerup', handlePointerUp);
   });
 }
 
@@ -937,14 +950,10 @@ if (nextUpArea) {
 
 window.presenterAPI?.onProgramEvent?.('display:playback-progress', (payload) => {
   if (!payload || typeof payload.currentTime !== 'number' || typeof payload.duration !== 'number') return;
-  const dur = Math.max(0, payload.duration);
-  if (dur > 0 || payload.duration === 0) {
-    displayDuration = dur;
-  }
-
-  if (!isDisplayScrubbing) {
-    displayCurrentTime = Math.max(0, payload.currentTime);
-    updateDisplayUI();
+  programDuration = Math.max(0, payload.duration);
+  if (!isScrubbingProgram) {
+    programCurrentTime = Math.max(0, payload.currentTime);
+    updateProgramProgressUI();
   }
 });
 
@@ -963,9 +972,9 @@ window.presenterAPI?.onProgramEvent?.('display:ended', () => {
     console.log('CONTROL: No Preview or Next Up — show fallback background');
   }
 
-  displayDuration = 0;
-  displayCurrentTime = 0;
-  updateDisplayUI();
+  programDuration = 0;
+  programCurrentTime = 0;
+  updateProgramProgressUI();
 });
 
 renderNextUp(null);
