@@ -122,14 +122,7 @@ function getInactiveLayer() {
 }
 
 function getActiveProgramElement() {
-  if (currentType === 'video') {
-    const active = typeof getActiveLayer === 'function' ? getActiveLayer() : null;
-    return active && active.video ? active.video : null;
-  }
-  if (currentType === 'audio') {
-    return audioEl || null;
-  }
-  return null;
+  return currentProgramEl || null;
 }
 
 function resetVisualClass(el) {
@@ -265,6 +258,7 @@ function hideAll() {
   stopAudio();
   currentItem = null;
   currentType = null;
+  currentProgramEl = null;
 }
 
 function clearError() {
@@ -360,9 +354,11 @@ function showItem(item) {
 
   if (item.type === 'image') {
     willShowVisual = prepareImage(incoming, item);
+    currentProgramEl = null;
     blackout?.classList.add('hidden');
   } else if (item.type === 'video') {
     willShowVisual = prepareVideo(incoming, item);
+    currentProgramEl = willShowVisual ? incoming.video : null;
     blackout?.classList.add('hidden');
   } else if (item.type === 'audio') {
     const audioSrc = item.url ? item.url : (item.path ? fileUrl(item.path) : null);
@@ -379,6 +375,7 @@ function showItem(item) {
       audioEl.addEventListener('loadedmetadata', ensureAudible, { once: true });
       try { audioEl.load(); } catch (err) { console.warn('Audio load failed', err); }
     }
+    currentProgramEl = audioSrc ? audioEl : null;
 
     if (item.displayImage && incoming?.img) {
       // Show the item-specific image
@@ -392,6 +389,7 @@ function showItem(item) {
       willShowVisual = false;
     }
   } else {
+    currentProgramEl = null;
     notifyError('Unsupported media type.', new Error(item.type));
     return;
   }
@@ -470,7 +468,7 @@ function onEnded(ev) {
     return;
   }
 
-  console.log('DISPLAY: media ended → notifying Control');
+  console.log('DISPLAY: media ended');
   window.presenterAPI.send('display:ended');
 
   const tokenAtEnd = playbackToken;
@@ -546,14 +544,24 @@ window.presenterAPI.onProgramEvent('display:seek', (payload) => {
 
   let el = null;
 
-  if (currentType === 'video') {
-    const active = getActiveLayer && getActiveLayer();
-    el = active && active.video ? active.video : null;
-  } else if (currentType === 'audio') {
-    el = audioEl;
+  const dur = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : null;
+  const clamped = dur ? Math.min(target, dur) : target;
+
+  const clearSeeking = () => {
+    isSeeking = false;
+    if (seekResetTimer) {
+      clearTimeout(seekResetTimer);
+      seekResetTimer = null;
+    }
+  };
+
+  if (clearSeekingHandler && lastSeekedElement) {
+    lastSeekedElement.removeEventListener('seeked', clearSeekingHandler);
   }
 
-  if (!el) return;
+  clearSeekingHandler = clearSeeking;
+  lastSeekedElement = el;
+  el.addEventListener('seeked', clearSeekingHandler, { once: true });
 
   isSeeking = true;
 
