@@ -110,6 +110,17 @@ function getInactiveLayer() {
   return getLayerElements(inactiveKey);
 }
 
+function getActiveProgramElement() {
+  if (currentType === 'video') {
+    const active = typeof getActiveLayer === 'function' ? getActiveLayer() : null;
+    return active && active.video ? active.video : null;
+  }
+  if (currentType === 'audio') {
+    return audioEl || null;
+  }
+  return null;
+}
+
 function resetVisualClass(el) {
   if (!el) return;
   el.className = 'visual';
@@ -506,20 +517,26 @@ window.presenterAPI.onProgramEvent('display:set-background', (absPath) => {
 });
 
 window.presenterAPI.onProgramEvent('display:seek', (payload) => {
-  if (!payload || typeof payload.time !== 'number' || !Number.isFinite(payload.time)) return;
-  const target = Math.max(0, payload.time);
-  if (currentType === 'video') {
-    const { video } = getActiveLayer();
-    if (video && Number.isFinite(video.duration) && video.duration > 0) {
-      video.currentTime = Math.min(target, video.duration);
-    } else if (video) {
-      video.currentTime = target;
-    }
-  } else if (currentType === 'audio') {
-    if (audioEl && Number.isFinite(audioEl.duration) && audioEl.duration > 0) {
-      audioEl.currentTime = Math.min(target, audioEl.duration);
-    } else if (audioEl) {
-      audioEl.currentTime = target;
-    }
+  if (!payload || typeof payload.time !== 'number' || !Number.isFinite(payload.time)) {
+    return;
   }
+
+  const target = Math.max(0, payload.time);
+  const el = getActiveProgramElement();
+  if (!el) {
+    console.warn('[DISPLAY] display:seek received with no active media element');
+    return;
+  }
+
+  const dur = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : null;
+  const clamped = dur ? Math.min(target, dur) : target;
+
+  console.log('[DISPLAY] Seeking to', clamped, 'of duration', dur);
+
+  el.currentTime = clamped;
+
+  window.presenterAPI.send('display:playback-progress', {
+    currentTime: clamped,
+    duration: dur || 0
+  });
 });
