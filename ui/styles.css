@@ -119,6 +119,10 @@ button:active {
   flex: 0 0 auto;
 }
 
+.program-progress-wrapper input[type="range"] {
+  width: 100%;
+}
+
 .program-progress-track {
   position: relative;
   height: 6px;
