@@ -81,6 +81,20 @@ window.presenterAPI.send('display:get-background');
   });
 })();
 
+function sendPlaybackProgressFrom(el) {
+  if (!el) return;
+  const currentTime = Number.isFinite(el.currentTime) ? el.currentTime : 0;
+  const duration = Number.isFinite(el.duration) ? el.duration : 0;
+  window.presenterAPI.send('display:playback-progress', { currentTime, duration });
+}
+
+[videoA, videoB, audioEl].forEach((el) => {
+  if (!el) return;
+  el.addEventListener('timeupdate', () => sendPlaybackProgressFrom(el));
+  el.addEventListener('loadedmetadata', () => sendPlaybackProgressFrom(el));
+  el.addEventListener('durationchange', () => sendPlaybackProgressFrom(el));
+});
+
 function getLayerElements(key) {
   return key === 'A'
     ? { layer: layerA, img: imgA, video: videoA }
@@ -300,6 +314,7 @@ function showItem(item) {
   resetSwapTimer();
 
   if (!item) {
+    window.presenterAPI.send('display:playback-progress', { currentTime: 0, duration: 0 });
     hideAll();
     if (!isBlanked && backgroundImagePath) {
       showBackgroundFallback();
@@ -487,5 +502,24 @@ window.presenterAPI.onProgramEvent('display:set-background', (absPath) => {
 
   if (!hasActiveVisual() && !isBlanked) {
     showBackgroundFallback();
+  }
+});
+
+window.presenterAPI.onProgramEvent('display:seek', (payload) => {
+  if (!payload || typeof payload.time !== 'number' || !Number.isFinite(payload.time)) return;
+  const target = Math.max(0, payload.time);
+  if (currentType === 'video') {
+    const { video } = getActiveLayer();
+    if (video && Number.isFinite(video.duration) && video.duration > 0) {
+      video.currentTime = Math.min(target, video.duration);
+    } else if (video) {
+      video.currentTime = target;
+    }
+  } else if (currentType === 'audio') {
+    if (audioEl && Number.isFinite(audioEl.duration) && audioEl.duration > 0) {
+      audioEl.currentTime = Math.min(target, audioEl.duration);
+    } else if (audioEl) {
+      audioEl.currentTime = target;
+    }
   }
 });

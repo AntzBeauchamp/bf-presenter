@@ -283,9 +283,15 @@ ipcMain.on('display:pause', () => {
 ipcMain.on('display:play', () => {
   if (displayWin && !displayWin.isDestroyed()) displayWin.webContents.send('display:play');
 });
+ipcMain.on('display:seek', (_evt, payload) => {
+  if (displayWin && !displayWin.isDestroyed()) displayWin.webContents.send('display:seek', payload);
+});
 ipcMain.on('display:ended', () => {
   if (controlWin && !controlWin.isDestroyed()) controlWin.webContents.send('display:ended');
   logMain('INFO', 'Display reported playback ended');
+});
+ipcMain.on('display:playback-progress', (_evt, payload) => {
+  if (controlWin && !controlWin.isDestroyed()) controlWin.webContents.send('display:playback-progress', payload);
 });
 ipcMain.on('display:error', (_evt, payload) => {
   if (controlWin && !controlWin.isDestroyed()) controlWin.webContents.send('display:error', payload);
