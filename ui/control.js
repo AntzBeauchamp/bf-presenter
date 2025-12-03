@@ -845,36 +845,50 @@ function setupExplorerFileDrop() {
   const root = document.body;
   if (!root) return;
 
-  const hasFiles = (dataTransfer) => Array.from(dataTransfer?.types || []).includes('Files');
-
   const handleDragOver = (e) => {
-    if (e.defaultPrevented || !hasFiles(e.dataTransfer)) return;
+    const types = e.dataTransfer?.types;
+    console.log('[CONTROL-DROP] dragover target:', e.target?.id, 'types:', types);
+    const hasFiles = Array.from(types || []).includes('Files');
+    if (!hasFiles) return;
     e.preventDefault();
     if (e.dataTransfer) {
       e.dataTransfer.dropEffect = 'copy';
     }
-    console.log('[CONTROL-DROP] dragover', e.dataTransfer?.types);
   };
 
   const handleDrop = (e) => {
-    if (e.defaultPrevented || !hasFiles(e.dataTransfer)) return;
     e.preventDefault();
 
-    const files = Array.from(e.dataTransfer?.files || []);
-    if (!files.length) {
-      console.log('[CONTROL-DROP] Drop event had no files');
+    const dt = e.dataTransfer;
+    if (!dt) {
+      console.log('[CONTROL-DROP] No dataTransfer on drop');
       return;
     }
 
-    const paths = files.map((file) => file.path).filter((p) => typeof p === 'string' && p.length > 0);
-    console.log('[CONTROL-DROP] drop paths', paths);
+    const files = Array.from(dt.files || []);
+    console.log('[CONTROL-DROP] drop event types:', dt.types, 'files length:', files.length);
+    if (files.length > 0) {
+      const paths = files.map((file) => file.path).filter((p) => typeof p === 'string' && p.length > 0);
 
-    if (!paths.length) {
-      console.log('[CONTROL-DROP] Drop event had files but no usable paths');
+      console.log('[CONTROL-DROP] handling file drop, paths:', paths);
+
+      if (paths.length) {
+        const before = media.length;
+        addPathsToMedia(paths);
+
+        const firstNew = media[before];
+        if (firstNew) {
+          nextUpId = firstNew.id;
+          renderNextUp(firstNew);
+        }
+
+        renderMediaGrid();
+      }
+
       return;
     }
 
-    addPathsToMedia(paths);
+    console.log('[CONTROL-DROP] drop had no files; deferring to internal handlers');
   };
 
   root.addEventListener('dragover', handleDragOver);
