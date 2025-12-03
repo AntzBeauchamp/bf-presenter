@@ -11,6 +11,7 @@ const errorBanner = document.getElementById('errorBanner');
 let activeLayerKey = 'A';
 let currentItem = null;
 let currentType = null;
+let currentMediaEl = null;
 let swapTimer = null;
 let fallbackTimer = null;
 let playbackToken = 0;
@@ -29,6 +30,23 @@ function logDisplay(level, msg, data = null) {
 
 console.log('Display ready');
 window.presenterAPI.send('display:get-background');
+
+function sendPlaybackProgressFrom(el, from = 'unknown') {
+  if (!el) return;
+  if (!currentMediaEl || el !== currentMediaEl) return;
+
+  const currentTime = Number.isFinite(el.currentTime) ? el.currentTime : 0;
+  const duration = Number.isFinite(el.duration) ? el.duration : 0;
+
+  window.presenterAPI.send('display:playback-progress', { currentTime, duration });
+}
+
+[videoA, videoB, audioEl].forEach((el) => {
+  if (!el) return;
+  el.addEventListener('timeupdate', () => sendPlaybackProgressFrom(el, 'timeupdate'));
+  el.addEventListener('loadedmetadata', () => sendPlaybackProgressFrom(el, 'loadedmetadata'));
+  el.addEventListener('durationchange', () => sendPlaybackProgressFrom(el, 'durationchange'));
+});
 
 (function tapConsole() {
   if (!logAPI?.append) return;
@@ -229,6 +247,9 @@ function hideAll() {
   stopAudio();
   currentItem = null;
   currentType = null;
+  currentMediaEl = null;
+
+  window.presenterAPI.send('display:playback-progress', { currentTime: 0, duration: 0 });
 }
 
 function clearError() {
@@ -296,6 +317,7 @@ function showItem(item) {
   console.log('Display received item', item);
   currentItem = item || null;
   currentType = item?.type || null;
+  currentMediaEl = null;
   clearError();
   resetSwapTimer();
 
@@ -306,6 +328,7 @@ function showItem(item) {
     } else {
       blackout?.classList.remove('hidden');
     }
+    window.presenterAPI.send('display:playback-progress', { currentTime: 0, duration: 0 });
     return;
   }
 
@@ -323,10 +346,13 @@ function showItem(item) {
   if (item.type === 'image') {
     willShowVisual = prepareImage(incoming, item);
     blackout?.classList.add('hidden');
+    window.presenterAPI.send('display:playback-progress', { currentTime: 0, duration: 0 });
   } else if (item.type === 'video') {
     willShowVisual = prepareVideo(incoming, item);
+    currentMediaEl = incoming.video;
     blackout?.classList.add('hidden');
   } else if (item.type === 'audio') {
+    currentMediaEl = audioEl;
     const audioSrc = item.url ? item.url : (item.path ? fileUrl(item.path) : null);
     if (audioSrc) {
       audioEl.onerror = (e) => notifyError('Unable to load audio.', e);
@@ -487,5 +513,30 @@ window.presenterAPI.onProgramEvent('display:set-background', (absPath) => {
 
   if (!hasActiveVisual() && !isBlanked) {
     showBackgroundFallback();
+  }
+});
+
+window.presenterAPI.onProgramEvent('display:seek', (payload) => {
+  if (!payload || typeof payload.time !== 'number' || !Number.isFinite(payload.time)) {
+    return;
+  }
+
+  const target = Math.max(0, payload.time);
+  const el = currentMediaEl;
+
+  if (!el) {
+    console.warn('[DISPLAY] display:seek received but no active media element');
+    return;
+  }
+
+  const dur = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : null;
+  const clamped = dur ? Math.min(target, dur) : target;
+
+  console.log('[DISPLAY] display:seek received time', target, '→ clamped to', clamped);
+
+  try {
+    el.currentTime = clamped;
+  } catch (err) {
+    console.warn('Seek failed on media element', err);
   }
 });
