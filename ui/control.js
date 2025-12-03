@@ -800,8 +800,6 @@ function setupDisplayScrubber() {
     const ratio = Math.max(0, Math.min(percent / 100, 1));
     if (displayDuration > 0) {
       displayCurrentTime = displayDuration * ratio;
-    } else {
-      displayCurrentTime = 0;
     }
     updateDisplayUI();
   };
@@ -952,6 +950,8 @@ window.presenterAPI?.onProgramEvent?.('display:playback-progress', (payload) => 
     displayCurrentTime = Math.max(0, payload.currentTime);
     updateDisplayUI();
   }
+
+  console.log('[CONTROL] playback-progress', payload, 'scrubbing?', isDisplayScrubbing);
 });
 
 window.presenterAPI?.onProgramEvent?.('display:ended', () => {
