@@ -38,6 +38,7 @@ function sendPlaybackProgressFrom(el, from = 'unknown') {
   const currentTime = Number.isFinite(el.currentTime) ? el.currentTime : 0;
   const duration = Number.isFinite(el.duration) ? el.duration : 0;
 
+  console.log('[DISPLAY] playback-progress from', from, 'currentTime', currentTime, 'duration', duration, 'active?', el === currentMediaEl);
   window.presenterAPI.send('display:playback-progress', { currentTime, duration });
 }
 
@@ -249,6 +250,7 @@ function hideAll() {
   currentType = null;
   currentMediaEl = null;
 
+  console.log('[DISPLAY] hideAll – resetting progress to 0');
   window.presenterAPI.send('display:playback-progress', { currentTime: 0, duration: 0 });
 }
 
@@ -521,6 +523,7 @@ window.presenterAPI.onProgramEvent('display:seek', (payload) => {
     return;
   }
 
+  console.log('[DISPLAY] display:seek payload', payload, 'currentMediaEl?', !!currentMediaEl);
   const target = Math.max(0, payload.time);
   const el = currentMediaEl;
 
