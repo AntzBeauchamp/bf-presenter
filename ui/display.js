@@ -1,6 +1,7 @@
-const img = document.getElementById('img');
-const video = document.getElementById('video');
-const audio = document.getElementById('audio');
+// Wire up to the actual elements in display.html
+const img = document.getElementById('imgA');       // was 'img'
+const video = document.getElementById('videoA');   // was 'video'
+const audio = document.getElementById('audioEl');  // was 'audio'
 const blackout = document.getElementById('blackout');
 const errorBanner = document.getElementById('errorBanner');
 
@@ -16,7 +17,7 @@ function logDisplay(level, msg, data = null) {
   logAPI.append(level, 'DISPLAY', safeMsg, data);
 }
 
-console.log('Display ready');
+console.log('Display ready (single-layer, imgA / videoA / audioEl)');
 
 (function tapConsole() {
   if (!logAPI?.append) return;
@@ -145,8 +146,8 @@ function notifyError(message, err) {
 }
 
 function pauseMedia() {
-  try { video.pause(); } catch (err) { console.warn('Video pause failed', err); }
-  try { audio.pause(); } catch (err) { console.warn('Audio pause failed', err); }
+  try { video && video.pause(); } catch (err) { console.warn('Video pause failed', err); }
+  try { audio && audio.pause(); } catch (err) { console.warn('Audio pause failed', err); }
 }
 
 function tryPlay(el, label) {
@@ -216,6 +217,10 @@ function showItem(item) {
     });
 
     if (item.type === 'image') {
+      if (!img) {
+        notifyError('No image element available for display.', new Error('Missing imgA'));
+        return;
+      }
       img.onerror = (e) => notifyError('Unable to load image.', e);
       img.src = fileURL(item.path);
       img.classList.remove('hidden');
@@ -225,6 +230,10 @@ function showItem(item) {
       currentMediaEl = null;
       window.presenterAPI.send('display:playback-progress', { currentTime: 0, duration: 0 });
     } else if (item.type === 'audio') {
+      if (!audio) {
+        notifyError('No audio element available for playback.', new Error('Missing audioEl'));
+        return;
+      }
       audio.onerror = (e) => notifyError('Unable to load audio.', e);
       audio.src = fileURL(item.path);
       audio.classList.remove('hidden');
@@ -233,7 +242,7 @@ function showItem(item) {
 
       audio.play().catch((err) => console.error('Failed to autoplay audio:', err));
 
-      if (item.displayImage) {
+      if (item.displayImage && img) {
         img.onerror = (e) => notifyError('Unable to load display image.', e);
         img.src = fileURL(item.displayImage);
         img.classList.remove('hidden');
@@ -244,6 +253,10 @@ function showItem(item) {
         blackout?.classList.remove('hidden');
       }
     } else if (item.type === 'video') {
+      if (!video) {
+        notifyError('No video element available for playback.', new Error('Missing videoA'));
+        return;
+      }
       const videoPath = fileURL(item.path);
       console.log('Resolved video path:', videoPath);
 
@@ -268,17 +281,19 @@ function showItem(item) {
 }
 
 // --- Event wiring ---
-
 // Progress + ended
-video.onended = () => {
-  window.presenterAPI.send('display:ended');
-};
-audio.onended = () => {
-  window.presenterAPI.send('display:ended');
-};
+if (video) {
+  video.onended = () => {
+    window.presenterAPI.send('display:ended');
+  };
+}
+if (audio) {
+  audio.onended = () => {
+    window.presenterAPI.send('display:ended');
+  };
+}
 
 // From Main/Control
-
 window.presenterAPI.onProgramEvent('display:show-item', (item) => {
   console.log('Display received item:', item);
   showItem(item);
@@ -298,15 +313,15 @@ window.presenterAPI.onProgramEvent('display:pause', () => {
 });
 
 window.presenterAPI.onProgramEvent('display:play', () => {
-  if (!video.classList.contains('hidden')) {
+  if (video && !video.classList.contains('hidden')) {
     tryPlay(video, 'video');
   }
-  if (!audio.classList.contains('hidden')) {
+  if (audio && !audio.classList.contains('hidden')) {
     tryPlay(audio, 'audio');
   }
 });
 
-// NEW: handle seek from Control
+// Handle seek from Control
 window.presenterAPI.onProgramEvent('display:seek', (payload) => {
   if (!payload || typeof payload.time !== 'number' || !Number.isFinite(payload.time)) {
     return;
