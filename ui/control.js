@@ -841,59 +841,52 @@ function setupDropTarget(target, onDrop) {
   });
 }
 
-function setupExplorerFileDrop() {
-  const root = document.body;
-  if (!root) return;
+  function setupExplorerFileDrop() {
+    const root = document.body;
+    if (!root) return;
 
-  const handleDragOver = (e) => {
-    const types = e.dataTransfer?.types;
-    console.log('[CONTROL-DROP] dragover target:', e.target?.id, 'types:', types);
-    const hasFiles = Array.from(types || []).includes('Files');
-    if (!hasFiles) return;
-    e.preventDefault();
-    if (e.dataTransfer) {
-      e.dataTransfer.dropEffect = 'copy';
-    }
-  };
+    const handleDragOver = (e) => {
+      const files = Array.from(e.dataTransfer?.files || []);
+      console.log('[CONTROL-EXTERNAL-DROP] dragover files length:', files.length);
+      if (!files.length) return;
+      e.preventDefault();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    };
 
-  const handleDrop = (e) => {
-    e.preventDefault();
+    const handleDrop = (e) => {
+      if (!e.dataTransfer) return;
 
-    const dt = e.dataTransfer;
-    if (!dt) {
-      console.log('[CONTROL-DROP] No dataTransfer on drop');
-      return;
-    }
+      const files = Array.from(e.dataTransfer.files || []);
+      console.log('[CONTROL-EXTERNAL-DROP] drop files length:', files.length);
+      if (!files.length) return;
 
-    const files = Array.from(dt.files || []);
-    console.log('[CONTROL-DROP] drop event types:', dt.types, 'files length:', files.length);
-    if (files.length > 0) {
-      const paths = files.map((file) => file.path).filter((p) => typeof p === 'string' && p.length > 0);
+      e.preventDefault();
 
-      console.log('[CONTROL-DROP] handling file drop, paths:', paths);
+      const paths = files
+        .map((file) => file.path)
+        .filter((p) => typeof p === 'string' && p.length > 0);
 
-      if (paths.length) {
-        const before = media.length;
-        addPathsToMedia(paths);
+      console.log('[CONTROL-EXTERNAL-DROP] file paths:', paths);
 
-        const firstNew = media[before];
-        if (firstNew) {
-          nextUpId = firstNew.id;
-          renderNextUp(firstNew);
-        }
+      if (!paths.length) return;
 
-        renderMediaGrid();
+      const before = media.length;
+      addPathsToMedia(paths);
+
+      const firstNew = media[before];
+      if (firstNew) {
+        nextUpId = firstNew.id;
+        renderNextUp(firstNew);
       }
 
-      return;
-    }
+      renderMediaGrid();
+    };
 
-    console.log('[CONTROL-DROP] drop had no files; deferring to internal handlers');
-  };
-
-  root.addEventListener('dragover', handleDragOver);
-  root.addEventListener('drop', handleDrop);
-}
+    root.addEventListener('dragover', handleDragOver);
+    root.addEventListener('drop', handleDrop);
+  }
 
 setupDropTarget(grid, (paths) => {
   addPathsToMedia(paths);
