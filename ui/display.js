@@ -292,7 +292,13 @@ function prepareImage(layer, item) {
 
 function prepareVideo(layer, item) {
   if (!layer?.video || !item) return false;
-  const src = item.url ? item.url : (item.path ? fileUrl(item.path) : null);
+  if (!item.path) {
+    console.error('[DISPLAY] Cannot play video – missing item.path', item);
+    notifyError('Unable to load video – no file path.', new Error('missing path'));
+    return false;
+  }
+
+  const src = fileUrl(item.path);
   if (!src) return false;
   layer.video.onerror = (e) => notifyError('Unable to load video.', e);
   layer.video.src = src;
@@ -306,6 +312,7 @@ function prepareVideo(layer, item) {
   };
   ensureAudible();
   layer.video.addEventListener('loadedmetadata', ensureAudible, { once: true });
+  console.log('[DISPLAY] using source for', item.type, layer.video.src);
   showVisual(layer.video);
   return true;
 }
@@ -355,7 +362,13 @@ function showItem(item) {
     blackout?.classList.add('hidden');
   } else if (item.type === 'audio') {
     currentMediaEl = audioEl;
-    const audioSrc = item.url ? item.url : (item.path ? fileUrl(item.path) : null);
+    if (!item.path) {
+      console.error('[DISPLAY] Cannot play audio – missing item.path', item);
+      notifyError('Unable to load audio – no file path.', new Error('missing path'));
+      return;
+    }
+
+    const audioSrc = fileUrl(item.path);
     if (audioSrc) {
       audioEl.onerror = (e) => notifyError('Unable to load audio.', e);
       audioEl.src = audioSrc;
@@ -368,6 +381,7 @@ function showItem(item) {
       ensureAudible();
       audioEl.addEventListener('loadedmetadata', ensureAudible, { once: true });
       try { audioEl.load(); } catch (err) { console.warn('Audio load failed', err); }
+      console.log('[DISPLAY] using source for', item.type, audioEl.src);
     }
 
     if (item.displayImage && incoming?.img) {
