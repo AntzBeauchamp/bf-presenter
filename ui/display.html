@@ -6,23 +6,11 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body class="display">
-  <!-- Program stage: two layers for crossfade -->
   <div id="programRoot">
     <div id="programStage">
-      <div class="layer" id="layerA">
-        <img id="imgA" class="visual" />
-        <video id="videoA" class="visual" playsinline></video>
-      </div>
-
-      <div class="layer" id="layerB">
-        <img id="imgB" class="visual" />
-        <video id="videoB" class="visual" playsinline></video>
-      </div>
-
-      <!-- Single audio element (no crossfade for audio) -->
-      <audio id="audioEl"></audio>
-
-      <!-- Blackout overlay stays above visuals when needed -->
+      <img id="img" class="visual" />
+      <video id="video" class="visual" playsinline></video>
+      <audio id="audio"></audio>
       <div id="blackout" class="blackout"></div>
     </div>
   </div>
