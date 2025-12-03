@@ -8,6 +8,10 @@ const audioEl = document.getElementById('audioEl');
 const blackout = document.getElementById('blackout');
 const errorBanner = document.getElementById('errorBanner');
 
+if (!videoA) console.warn('[DISPLAY] WARNING: No <video id="videoA"> element found in display.html');
+if (!videoB) console.warn('[DISPLAY] WARNING: No <video id="videoB"> element found in display.html');
+if (!audioEl) console.warn('[DISPLAY] WARNING: No <audio id="audioEl"> element found in display.html');
+
 let activeLayerKey = 'A';
 let currentItem = null;
 let currentType = null;
@@ -483,9 +487,18 @@ function onEnded(ev) {
   }, 1000);
 }
 
-videoA.onended = onEnded;
-videoB.onended = onEnded;
-audioEl.onended = onEnded;
+// Safely attach onended handlers only if elements exist
+if (videoA) {
+  videoA.onended = onEnded;
+}
+
+if (videoB) {
+  videoB.onended = onEnded;
+}
+
+if (audioEl) {
+  audioEl.onended = onEnded;
+}
 
 window.presenterAPI.onProgramEvent('display:show-item', (item) => {
   showItem(item);
