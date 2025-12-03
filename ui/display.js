@@ -1,27 +1,12 @@
-const layerA = document.getElementById('layerA');
-const layerB = document.getElementById('layerB');
-const imgA = document.getElementById('imgA');
-const imgB = document.getElementById('imgB');
-const videoA = document.getElementById('videoA');
-const videoB = document.getElementById('videoB');
-const audioEl = document.getElementById('audioEl');
+const img = document.getElementById('img');
+const video = document.getElementById('video');
+const audio = document.getElementById('audio');
 const blackout = document.getElementById('blackout');
 const errorBanner = document.getElementById('errorBanner');
 
-let activeLayerKey = 'A';
 let currentItem = null;
-let currentType = null;
-let swapTimer = null;
-let fallbackTimer = null;
-let playbackToken = 0;
-let seekResetTimer = null;
-let lastSeekedElement = null;
-let clearSeekingHandler = null;
-let isSeeking = false;
-
-let backgroundImagePath = null;
-let isBlanked = false;
-let repeatEnabled = false;
+let currentType = null;      // 'image' | 'audio' | 'video' | null
+let currentMediaEl = null;   // <video> or <audio> when active, else null
 
 const logAPI = window.presenterAPI?.log;
 
@@ -32,7 +17,6 @@ function logDisplay(level, msg, data = null) {
 }
 
 console.log('Display ready');
-window.presenterAPI.send('display:get-background');
 
 (function tapConsole() {
   if (!logAPI?.append) return;
@@ -85,186 +69,61 @@ window.presenterAPI.send('display:get-background');
   });
 })();
 
+// --- Helpers ---
+
+function fileURL(path) {
+  try {
+    return window.presenterAPI.toFileURL(path);
+  } catch (err) {
+    console.error('Failed to convert path to URL', err);
+    return encodeURI(`file://${path}`);
+  }
+}
+
 function sendPlaybackProgressFrom(el, from = 'unknown') {
   if (!el) return;
-  const active = getActiveProgramElement();
-
-  // FIX: only report progress for the active program element so stale 0,0 events
-  // from cleared layers don't override scrubbing state on the control side.
-  if (active && el !== active) return;
+  if (!currentMediaEl || el !== currentMediaEl) return;
 
   const currentTime = Number.isFinite(el.currentTime) ? el.currentTime : 0;
   const duration = Number.isFinite(el.duration) ? el.duration : 0;
-  console.log('[DISPLAY] playback-progress', { from, currentTime, duration });
+
   window.presenterAPI.send('display:playback-progress', { currentTime, duration });
 }
 
-[videoA, videoB, audioEl].forEach((el) => {
+[video, audio].forEach((el) => {
   if (!el) return;
   el.addEventListener('timeupdate', () => sendPlaybackProgressFrom(el, 'timeupdate'));
   el.addEventListener('loadedmetadata', () => sendPlaybackProgressFrom(el, 'loadedmetadata'));
   el.addEventListener('durationchange', () => sendPlaybackProgressFrom(el, 'durationchange'));
 });
 
-function getLayerElements(key) {
-  return key === 'A'
-    ? { layer: layerA, img: imgA, video: videoA }
-    : { layer: layerB, img: imgB, video: videoB };
-}
-
-function getActiveLayer() {
-  return getLayerElements(activeLayerKey);
-}
-
-function getInactiveLayer() {
-  const inactiveKey = activeLayerKey === 'A' ? 'B' : 'A';
-  return getLayerElements(inactiveKey);
-}
-
-function getActiveProgramElement() {
-  if (currentType === 'video') {
-    const active = typeof getActiveLayer === 'function' ? getActiveLayer() : null;
-    return active && active.video ? active.video : null;
-  }
-  if (currentType === 'audio') {
-    return audioEl || null;
-  }
-  return null;
-}
-
-function resetVisualClass(el) {
-  if (!el) return;
-  el.className = 'visual';
-}
-
-function showVisual(el) {
-  if (!el) return;
-  resetVisualClass(el);
-  el.classList.add('show');
-}
-
-function resetSwapTimer() {
-  if (swapTimer) {
-    clearTimeout(swapTimer);
-    swapTimer = null;
-  }
-}
-
-function stopLayerPlayback(layer) {
-  if (!layer) return;
-  try { layer.video.pause(); } catch (err) { console.warn('Pause failed', err); }
-}
-
-function clearLayerContent(layer) {
-  if (!layer) return;
-  if (layer.video) {
-    layer.video.onerror = null;
-    try { layer.video.pause(); } catch {}
-    layer.video.removeAttribute('src');
-    try { layer.video.load(); } catch (err) { console.warn('Video load reset failed', err); }
-    resetVisualClass(layer.video);
-  }
-  if (layer.img) {
-    layer.img.onerror = null;
-    layer.img.removeAttribute('src');
-    resetVisualClass(layer.img);
-  }
-}
-
-function hideAllVisuals() {
-  clearLayerContent(getLayerElements('A'));
-  clearLayerContent(getLayerElements('B'));
-  layerA?.classList.remove('visible');
-  layerB?.classList.remove('visible');
-}
-
-function hasActiveVisual() {
-  const { img, video } = getActiveLayer();
-  const visibleImg = img?.classList.contains('show') && img.src;
-  const visibleVideo = video?.classList.contains('show') && video.src;
-  return !!(visibleImg || visibleVideo);
-}
-
-function showFallbackAfterEnd(expectedToken) {
-  if (expectedToken !== playbackToken || isBlanked) return;
-
-  const outgoing = getActiveLayer();
-  const incoming = getInactiveLayer();
-
-  if (backgroundImagePath) {
-    console.log('DISPLAY: showing background after end');
-    clearLayerContent(incoming);
-
-    if (incoming?.img) {
-      incoming.img.src = fileUrl(backgroundImagePath);
-      showVisual(incoming.img);
-    }
-    blackout.classList.add('hidden');
-    incoming.layer?.classList.add('visible');
-    outgoing.layer?.classList.remove('visible');
-
-    setTimeout(() => {
-      activeLayerKey = (activeLayerKey === 'A') ? 'B' : 'A';
-      clearLayerContent(outgoing);
-    }, 1000);
-  } else {
-    console.log('DISPLAY: no background — reverting to black');
-    blackout.classList.remove('hidden');
-    outgoing.layer?.classList.remove('visible');
-    setTimeout(() => {
-      clearLayerContent(outgoing);
-    }, 1000);
-  }
-}
-
-function showBackgroundFallback() {
-  const outgoing = getActiveLayer();
-  const incomingKey = activeLayerKey === 'A' ? 'B' : 'A';
-  const incoming = getLayerElements(incomingKey);
-
-  resetSwapTimer();
-  clearLayerContent(incoming);
-
-  if (backgroundImagePath) {
-    if (incoming?.img) {
-      incoming.img.src = fileUrl(backgroundImagePath);
-      showVisual(incoming.img);
-    }
-    blackout?.classList.add('hidden');
-    incoming.layer?.classList.add('visible');
-    outgoing.layer?.classList.remove('visible');
-    swapTimer = window.setTimeout(() => {
-      clearLayerContent(outgoing);
-      swapTimer = null;
-    }, 1000);
-    activeLayerKey = incomingKey;
-  } else {
-    incoming.layer?.classList.remove('visible');
-    outgoing.layer?.classList.remove('visible');
-    blackout?.classList.remove('hidden');
-    clearLayerContent(outgoing);
-    clearLayerContent(incoming);
-  }
-}
-
-function stopAudio() {
-  if (!audioEl) return;
-  audioEl.onerror = null;
-  try { audioEl.pause(); } catch (err) { console.warn('Audio pause failed', err); }
-  audioEl.removeAttribute('src');
-  try { audioEl.load(); } catch (err) { console.warn('Audio load reset failed', err); }
-}
-
 function hideAll() {
-  resetSwapTimer();
-  if (fallbackTimer) {
-    clearTimeout(fallbackTimer);
-    fallbackTimer = null;
-  }
-  hideAllVisuals();
-  stopAudio();
+  [img, video, audio].forEach((el) => {
+    if (!el) return;
+    el.onerror = null;
+
+    if (el.tagName === 'VIDEO' || el.tagName === 'AUDIO') {
+      try { el.pause(); } catch (err) { console.warn('Pause failed', err); }
+      el.removeAttribute('src');
+      if (typeof el.load === 'function') {
+        try { el.load(); } catch (err) { console.warn('Load reset failed', err); }
+      }
+    }
+
+    if (el.tagName === 'IMG') {
+      el.removeAttribute('src');
+    }
+
+    el.classList.add('hidden');
+    el.classList.remove('fade-in', 'fade-out');
+  });
+
   currentItem = null;
   currentType = null;
+  currentMediaEl = null;
+
+  // Reset progress on Control when everything is cleared
+  window.presenterAPI.send('display:playback-progress', { currentTime: 0, duration: 0 });
 }
 
 function clearError() {
@@ -276,309 +135,199 @@ function clearError() {
 
 function notifyError(message, err) {
   console.error(message, err);
-  const reportedItem = currentItem;
   hideAll();
   blackout?.classList.remove('hidden');
   if (errorBanner) {
     errorBanner.textContent = message;
     errorBanner.classList.remove('hidden');
   }
-  window.presenterAPI.send('display:error', { message, item: reportedItem });
+  window.presenterAPI.send('display:error', { message, item: currentItem });
 }
 
-function fileUrl(p) {
-  if (!p) return '';
-  if (typeof p === 'string' && /^https?:\/\//i.test(p)) return p;
-  if (window.presenterAPI?.toFileURL) return window.presenterAPI.toFileURL(p);
-  return 'file:///' + String(p).replace(/\\/g, '/').replace(/^\/+/, '');
+function pauseMedia() {
+  try { video.pause(); } catch (err) { console.warn('Video pause failed', err); }
+  try { audio.pause(); } catch (err) { console.warn('Audio pause failed', err); }
 }
 
-function prepareImage(layer, item) {
-  if (!layer?.img || !item) return false;
-  const src = item.url ? item.url : (item.path ? fileUrl(item.path) : null);
-  if (!src) return false;
-  layer.img.onerror = (e) => notifyError('Unable to load image.', e);
-  layer.img.src = src;
-  showVisual(layer.img);
-  return true;
+function tryPlay(el, label) {
+  if (!el || el.classList.contains('hidden')) return;
+  el.play().catch((err) => {
+    notifyError(`Unable to play ${label}.`, err);
+  });
 }
 
-function prepareVideo(layer, item) {
-  if (!layer?.video || !item) return false;
-  const src = item.url ? item.url : (item.path ? fileUrl(item.path) : null);
-  if (!src) return false;
-  layer.video.onerror = (e) => notifyError('Unable to load video.', e);
-  layer.video.src = src;
-  layer.video.preload = 'auto';
-  layer.video.loop = repeatEnabled;
-  layer.video.setAttribute('playsinline', '');
-  const ensureAudible = () => {
-    layer.video.muted = false;
-    layer.video.volume = 1;
-    layer.video.removeAttribute('muted');
-  };
-  ensureAudible();
-  layer.video.addEventListener('loadedmetadata', ensureAudible, { once: true });
-  showVisual(layer.video);
-  return true;
-}
+// --- Show item / crossfade ---
 
 function showItem(item) {
-  playbackToken += 1;
-  if (fallbackTimer) {
-    clearTimeout(fallbackTimer);
-    fallbackTimer = null;
-  }
-  console.log('Display received item', item);
+  console.log('Display got item:', item);
   currentItem = item || null;
-  currentType = item?.type || null;
   clearError();
-  resetSwapTimer();
+
+  // Stop any currently playing media
+  pauseMedia();
+
+  const elements = [img, video, audio];
+
+  // Crossfade out any currently visible elements
+  elements.forEach((el) => {
+    if (!el || el.classList.contains('hidden')) return;
+
+    el.classList.remove('fade-in');
+    el.classList.add('fade-out');
+
+    el.addEventListener('transitionend', () => {
+      el.classList.add('hidden');
+      el.classList.remove('fade-out');
+
+      // Clear media source to stop playback
+      if (el.tagName === 'VIDEO' || el.tagName === 'AUDIO') {
+        el.onerror = null;
+        el.removeAttribute('src');
+        if (typeof el.load === 'function') {
+          try { el.load(); } catch (err) { console.warn('Load reset failed', err); }
+        }
+        if (el === currentMediaEl) {
+          currentMediaEl = null;
+        }
+      }
+
+      if (el.tagName === 'IMG') {
+        el.removeAttribute('src');
+      }
+    }, { once: true });
+  });
 
   if (!item) {
-    console.log('[DISPLAY] resetting media or progress here', { reason: 'no-item' });
+    blackout?.classList.remove('hidden');
+    currentType = null;
+    currentMediaEl = null;
     window.presenterAPI.send('display:playback-progress', { currentTime: 0, duration: 0 });
-    hideAll();
-    if (!isBlanked && backgroundImagePath) {
-      showBackgroundFallback();
-    } else {
-      blackout?.classList.remove('hidden');
-    }
     return;
   }
 
-  const outgoingKey = activeLayerKey;
-  const outgoing = getLayerElements(outgoingKey);
-  const incomingKey = outgoingKey === 'A' ? 'B' : 'A';
-  const incoming = getLayerElements(incomingKey);
+  // Small delay to allow fade-out to complete
+  setTimeout(() => {
+    currentType = item.type || null;
+    currentMediaEl = null;
 
-  stopLayerPlayback(outgoing);
-  stopAudio();
-  clearLayerContent(incoming);
+    elements.forEach((el) => {
+      if (!el) return;
+      el.classList.remove('fade-in', 'fade-out');
+    });
 
-  let willShowVisual = false;
+    if (item.type === 'image') {
+      img.onerror = (e) => notifyError('Unable to load image.', e);
+      img.src = fileURL(item.path);
+      img.classList.remove('hidden');
+      img.classList.add('fade-in');
+      blackout?.classList.add('hidden');
 
-  if (item.type === 'image') {
-    willShowVisual = prepareImage(incoming, item);
-    blackout?.classList.add('hidden');
-  } else if (item.type === 'video') {
-    willShowVisual = prepareVideo(incoming, item);
-    blackout?.classList.add('hidden');
-  } else if (item.type === 'audio') {
-    const audioSrc = item.url ? item.url : (item.path ? fileUrl(item.path) : null);
-    if (audioSrc) {
-      audioEl.onerror = (e) => notifyError('Unable to load audio.', e);
-      audioEl.src = audioSrc;
-      audioEl.loop = repeatEnabled;
-      const ensureAudible = () => {
-        audioEl.muted = false;
-        audioEl.volume = 1;
-        audioEl.removeAttribute('muted');
+      currentMediaEl = null;
+      window.presenterAPI.send('display:playback-progress', { currentTime: 0, duration: 0 });
+    } else if (item.type === 'audio') {
+      audio.onerror = (e) => notifyError('Unable to load audio.', e);
+      audio.src = fileURL(item.path);
+      audio.classList.remove('hidden');
+      audio.classList.add('fade-in');
+      currentMediaEl = audio;
+
+      audio.play().catch((err) => console.error('Failed to autoplay audio:', err));
+
+      if (item.displayImage) {
+        img.onerror = (e) => notifyError('Unable to load display image.', e);
+        img.src = fileURL(item.displayImage);
+        img.classList.remove('hidden');
+        img.classList.add('fade-in');
+        blackout?.classList.add('hidden');
+      } else {
+        // No image: keep screen black behind the audio
+        blackout?.classList.remove('hidden');
+      }
+    } else if (item.type === 'video') {
+      const videoPath = fileURL(item.path);
+      console.log('Resolved video path:', videoPath);
+
+      video.onerror = (e) => {
+        console.error(`Unable to load video at ${videoPath}.`, e);
+        notifyError(`Unable to load video at ${videoPath}. Error: ${e.message || e}`);
       };
-      ensureAudible();
-      audioEl.addEventListener('loadedmetadata', ensureAudible, { once: true });
-      try { audioEl.load(); } catch (err) { console.warn('Audio load failed', err); }
-    }
 
-    if (item.displayImage && incoming?.img) {
-      // Show the item-specific image
-      incoming.img.onerror = (e) => notifyError('Unable to load image.', e);
-      incoming.img.src = fileUrl(item.displayImage);
-      showVisual(incoming.img);
-      willShowVisual = true;
+      video.src = videoPath;
+      video.setAttribute('playsinline', '');
+      video.classList.remove('hidden');
+      video.classList.add('fade-in');
       blackout?.classList.add('hidden');
+
+      currentMediaEl = video;
+
+      video.play().catch((err) => console.error('Failed to autoplay video:', err));
     } else {
-      // No per-track image: show global background if set, else black
-      willShowVisual = false;
+      notifyError('Unsupported media type.', new Error(item.type));
     }
-  } else {
-    notifyError('Unsupported media type.', new Error(item.type));
-    return;
-  }
-
-  activeLayerKey = incomingKey;
-
-  if (willShowVisual) {
-    incoming.layer.classList.add('visible');
-    outgoing.layer.classList.remove('visible');
-
-    swapTimer = window.setTimeout(() => {
-      clearLayerContent(outgoing);
-      swapTimer = null;
-    }, 1000);
-  } else {
-    if (backgroundImagePath && !isBlanked) {
-      clearLayerContent(incoming);
-      if (incoming?.img) {
-        incoming.img.src = fileUrl(backgroundImagePath);
-        showVisual(incoming.img);
-      }
-      blackout?.classList.add('hidden');
-      incoming.layer?.classList.add('visible');
-      outgoing.layer?.classList.remove('visible');
-      swapTimer = window.setTimeout(() => {
-        clearLayerContent(outgoing);
-        swapTimer = null;
-      }, 1000);
-    } else {
-      incoming.layer?.classList.remove('visible');
-      outgoing.layer?.classList.remove('visible');
-      blackout?.classList.remove('hidden'); // pure black
-      clearLayerContent(outgoing);
-      clearLayerContent(incoming);
-    }
-  }
+  }, 300);
 }
 
-function playCurrent() {
-  const { video } = getActiveLayer();
-  console.log('[DISPLAY] playCurrent called', { currentType });
-  if (currentType === 'video' && video.classList.contains('show')) {
-    video.play().catch((err) => {
-      notifyError('Unable to play video.', err);
-    });
-  } else if (currentType === 'audio' && audioEl.src) {
-    audioEl.play().catch((err) => {
-      notifyError('Unable to play audio.', err);
-    });
-  }
-}
+// --- Event wiring ---
 
-function pauseCurrent() {
-  const { video } = getLayerElements('A');
-  const { video: videoBEl } = getLayerElements('B');
-  [video, videoBEl].forEach((vid) => {
-    try { vid.pause(); } catch (err) { console.warn('Video pause failed', err); }
-  });
-  try { audioEl.pause(); } catch (err) { console.warn('Audio pause failed', err); }
-}
-
-function onEnded(ev) {
-  if (isSeeking) {
-    return;
-  }
-
-  if (repeatEnabled && (currentType === 'video' || currentType === 'audio')) {
-    try {
-      const el = ev?.target || (currentType === 'video' ? getActiveLayer().video : audioEl);
-      if (el) {
-        console.log('[DISPLAY] resetting media or progress here', { reason: 'repeat-ended' });
-        el.currentTime = 0;
-        el.play().catch(() => {});
-      }
-    } catch {}
-    return;
-  }
-
-  console.log('DISPLAY: media ended → notifying Control');
+// Progress + ended
+video.onended = () => {
   window.presenterAPI.send('display:ended');
+};
+audio.onended = () => {
+  window.presenterAPI.send('display:ended');
+};
 
-  const tokenAtEnd = playbackToken;
-  if (fallbackTimer) {
-    clearTimeout(fallbackTimer);
-  }
-  fallbackTimer = window.setTimeout(() => {
-    fallbackTimer = null;
-    showFallbackAfterEnd(tokenAtEnd);
-  }, 1000);
-}
-
-videoA.onended = onEnded;
-videoB.onended = onEnded;
-audioEl.onended = onEnded;
+// From Main/Control
 
 window.presenterAPI.onProgramEvent('display:show-item', (item) => {
+  console.log('Display received item:', item);
   showItem(item);
 });
 
-window.presenterAPI.onProgramEvent('display:set-repeat', (enabled) => {
-  repeatEnabled = !!enabled;
-  const { video } = getActiveLayer();
-  if (audioEl) {
-    audioEl.loop = repeatEnabled;
-  }
-  if (video) {
-    video.loop = repeatEnabled;
-  }
-});
-
-window.presenterAPI.onProgramEvent('display:play', () => {
-  playCurrent();
-});
-
-window.presenterAPI.onProgramEvent('display:pause', () => {
-  pauseCurrent();
-});
-
 window.presenterAPI.onProgramEvent('display:black', () => {
-  pauseCurrent();
-  isBlanked = true;
+  pauseMedia();
   blackout?.classList.remove('hidden');
 });
 
 window.presenterAPI.onProgramEvent('display:unblack', () => {
-  isBlanked = false;
-  if (!hasActiveVisual()) {
-    showBackgroundFallback();
-  } else {
-    blackout?.classList.add('hidden');
+  blackout?.classList.add('hidden');
+});
+
+window.presenterAPI.onProgramEvent('display:pause', () => {
+  pauseMedia();
+});
+
+window.presenterAPI.onProgramEvent('display:play', () => {
+  if (!video.classList.contains('hidden')) {
+    tryPlay(video, 'video');
+  }
+  if (!audio.classList.contains('hidden')) {
+    tryPlay(audio, 'audio');
   }
 });
 
-window.presenterAPI.onProgramEvent('display:set-background', (absPath) => {
-  backgroundImagePath = absPath || null;
-  console.log('DISPLAY: background set to', backgroundImagePath || 'none');
-
-  if (!hasActiveVisual() && !isBlanked) {
-    showBackgroundFallback();
-  }
-});
-
+// NEW: handle seek from Control
 window.presenterAPI.onProgramEvent('display:seek', (payload) => {
   if (!payload || typeof payload.time !== 'number' || !Number.isFinite(payload.time)) {
     return;
   }
 
   const target = Math.max(0, payload.time);
+  const el = currentMediaEl;
 
-  // display:seek is handled only in this block on the Display window.
-  console.log('[DISPLAY] display:seek received time', target);
-
-  let el = null;
-
-  if (currentType === 'video') {
-    const active = getActiveLayer && getActiveLayer();
-    el = active && active.video ? active.video : null;
-  } else if (currentType === 'audio') {
-    el = audioEl;
+  if (!el) {
+    console.warn('[DISPLAY] display:seek received but no active media element');
+    return;
   }
-
-  if (!el) return;
-
-  isSeeking = true;
 
   const dur = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : null;
   const clamped = dur ? Math.min(target, dur) : target;
 
-  const clearSeeking = () => {
-    isSeeking = false;
-    if (seekResetTimer) {
-      clearTimeout(seekResetTimer);
-      seekResetTimer = null;
-    }
-  };
+  console.log('[DISPLAY] display:seek received time', target, '→ clamped to', clamped);
 
-  if (clearSeekingHandler && lastSeekedElement) {
-    lastSeekedElement.removeEventListener('seeked', clearSeekingHandler);
+  try {
+    el.currentTime = clamped;
+  } catch (err) {
+    console.warn('Seek failed on media element', err);
   }
-
-  clearSeekingHandler = clearSeeking;
-  lastSeekedElement = el;
-  el.addEventListener('seeked', clearSeekingHandler, { once: true });
-
-  // FIX: seeking should not trigger restart logic. Track the in-flight seek and
-  // clear the flag once the media reports it has settled.
-  seekResetTimer = window.setTimeout(clearSeeking, 1000);
-
-  el.currentTime = clamped;
 });
