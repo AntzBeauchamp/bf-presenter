@@ -841,6 +841,46 @@ function setupDropTarget(target, onDrop) {
   });
 }
 
+function setupExplorerFileDrop() {
+  const root = document.body;
+  if (!root) return;
+
+  const hasFiles = (dataTransfer) => Array.from(dataTransfer?.types || []).includes('Files');
+
+  const handleDragOver = (e) => {
+    if (e.defaultPrevented || !hasFiles(e.dataTransfer)) return;
+    e.preventDefault();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'copy';
+    }
+    console.log('[CONTROL-DROP] dragover', e.dataTransfer?.types);
+  };
+
+  const handleDrop = (e) => {
+    if (e.defaultPrevented || !hasFiles(e.dataTransfer)) return;
+    e.preventDefault();
+
+    const files = Array.from(e.dataTransfer?.files || []);
+    if (!files.length) {
+      console.log('[CONTROL-DROP] Drop event had no files');
+      return;
+    }
+
+    const paths = files.map((file) => file.path).filter((p) => typeof p === 'string' && p.length > 0);
+    console.log('[CONTROL-DROP] drop paths', paths);
+
+    if (!paths.length) {
+      console.log('[CONTROL-DROP] Drop event had files but no usable paths');
+      return;
+    }
+
+    addPathsToMedia(paths);
+  };
+
+  root.addEventListener('dragover', handleDragOver);
+  root.addEventListener('drop', handleDrop);
+}
+
 setupDropTarget(grid, (paths) => {
   addPathsToMedia(paths);
 });
@@ -848,6 +888,8 @@ setupDropTarget(grid, (paths) => {
 setupDropTarget(leftPanel, (paths) => {
   addPathsToMedia(paths);
 });
+
+setupExplorerFileDrop();
 
 setupDisplayScrubber();
 updateDisplayUI();
