@@ -45,6 +45,8 @@ let draggingId = null;
 let displayDuration = 0;
 let displayCurrentTime = 0;
 let isDisplayScrubbing = false;
+let lastDisplaySeekTarget = 0;
+let lastDisplaySeekSentAt = 0; // Date.now()
 
 function indexById(arr, id) {
   return arr.findIndex((m) => m.id === id);
@@ -164,6 +166,9 @@ function setupDisplayScrubber() {
   displayScrubber.addEventListener('change', () => {
     updateFromPercent();
     isDisplayScrubbing = false;
+
+    lastDisplaySeekTarget = displayCurrentTime;
+    lastDisplaySeekSentAt = Date.now();
 
     // display:seek is sent from this control-side handler.
     console.log('[CONTROL] display:seek sending time', displayCurrentTime, 'duration', displayDuration);
@@ -944,14 +949,28 @@ if (nextUpArea) {
 window.presenterAPI?.onProgramEvent?.('display:playback-progress', (payload) => {
   if (!payload || typeof payload.currentTime !== 'number' || typeof payload.duration !== 'number') return;
 
+  const now = Date.now();
   const dur = Math.max(0, payload.duration);
+  const incomingTime = Math.max(0, payload.currentTime);
 
   if (dur > 0) {
     displayDuration = dur;
   }
 
+  // Debounce a glitchy "jump back to 0" that sometimes happens immediately after a seek.
+  // If we just asked the Display to seek to a non-zero time, and within ~1.5s it reports
+  // a currentTime of 0, ignore this single update instead of snapping the slider to 0.
+  const recentlySought =
+    lastDisplaySeekTarget > 0 &&
+    (now - lastDisplaySeekSentAt) < 1500; // 1.5s window
+
+  if (recentlySought && incomingTime === 0) {
+    console.log('[CONTROL] Ignoring spurious 0s playback-progress right after seek');
+    return;
+  }
+
   if (!isDisplayScrubbing) {
-    displayCurrentTime = Math.max(0, payload.currentTime);
+    displayCurrentTime = incomingTime;
     updateDisplayUI();
   }
 });
