@@ -1,12 +1,25 @@
-const img = document.getElementById('img');
-const video = document.getElementById('video');
-const audio = document.getElementById('audio');
+const layerA = {
+  name: 'A',
+  img: document.getElementById('imgA'),
+  video: document.getElementById('videoA')
+};
+
+const layerB = {
+  name: 'B',
+  img: document.getElementById('imgB'),
+  video: document.getElementById('videoB')
+};
+
+const layers = [layerA, layerB];
+
+const audio = document.getElementById('audioEl');
 const blackout = document.getElementById('blackout');
 const errorBanner = document.getElementById('errorBanner');
 
 let currentItem = null;
 let currentType = null;      // 'image' | 'audio' | 'video' | null
 let currentMediaEl = null;   // <video> or <audio> when active, else null
+let activeLayer = null;      // whichever layer (A/B) is currently visible
 
 const logAPI = window.presenterAPI?.log;
 
@@ -80,6 +93,8 @@ function fileURL(path) {
   }
 }
 
+// Only publish playback progress from the currently active media element so
+// inactive layers can't report stale zeros and snap the scrubber back.
 function sendPlaybackProgressFrom(el, from = 'unknown') {
   if (!el) return;
   if (!currentMediaEl || el !== currentMediaEl) return;
@@ -87,40 +102,50 @@ function sendPlaybackProgressFrom(el, from = 'unknown') {
   const currentTime = Number.isFinite(el.currentTime) ? el.currentTime : 0;
   const duration = Number.isFinite(el.duration) ? el.duration : 0;
 
+  console.log('[DISPLAY] playback-progress', { from, currentTime, duration });
   window.presenterAPI.send('display:playback-progress', { currentTime, duration });
 }
 
-[video, audio].forEach((el) => {
+[...layers.flatMap((l) => [l.video, l.img]), audio].forEach((el) => {
   if (!el) return;
-  el.addEventListener('timeupdate', () => sendPlaybackProgressFrom(el, 'timeupdate'));
-  el.addEventListener('loadedmetadata', () => sendPlaybackProgressFrom(el, 'loadedmetadata'));
-  el.addEventListener('durationchange', () => sendPlaybackProgressFrom(el, 'durationchange'));
+  if (el.tagName === 'VIDEO' || el.tagName === 'AUDIO') {
+    el.addEventListener('timeupdate', () => sendPlaybackProgressFrom(el, 'timeupdate'));
+    el.addEventListener('loadedmetadata', () => sendPlaybackProgressFrom(el, 'loadedmetadata'));
+    el.addEventListener('durationchange', () => sendPlaybackProgressFrom(el, 'durationchange'));
+  }
 });
 
+function resetMediaElement(el) {
+  if (!el) return;
+  el.onerror = null;
+
+  if (el.tagName === 'VIDEO' || el.tagName === 'AUDIO') {
+    try { el.pause(); } catch (err) { console.warn('Pause failed', err); }
+    el.removeAttribute('src');
+    if (typeof el.load === 'function') {
+      try { el.load(); } catch (err) { console.warn('Load reset failed', err); }
+    }
+  }
+
+  if (el.tagName === 'IMG') {
+    el.removeAttribute('src');
+  }
+
+  el.classList.add('hidden');
+  el.classList.remove('fade-in', 'fade-out');
+}
+
 function hideAll() {
-  [img, video, audio].forEach((el) => {
-    if (!el) return;
-    el.onerror = null;
-
-    if (el.tagName === 'VIDEO' || el.tagName === 'AUDIO') {
-      try { el.pause(); } catch (err) { console.warn('Pause failed', err); }
-      el.removeAttribute('src');
-      if (typeof el.load === 'function') {
-        try { el.load(); } catch (err) { console.warn('Load reset failed', err); }
-      }
-    }
-
-    if (el.tagName === 'IMG') {
-      el.removeAttribute('src');
-    }
-
-    el.classList.add('hidden');
-    el.classList.remove('fade-in', 'fade-out');
+  layers.forEach((layer) => {
+    resetMediaElement(layer.img);
+    resetMediaElement(layer.video);
   });
+  resetMediaElement(audio);
 
   currentItem = null;
   currentType = null;
   currentMediaEl = null;
+  activeLayer = null;
 
   // Reset progress on Control when everything is cleared
   window.presenterAPI.send('display:playback-progress', { currentTime: 0, duration: 0 });
@@ -145,7 +170,9 @@ function notifyError(message, err) {
 }
 
 function pauseMedia() {
-  try { video && video.pause(); } catch (err) { console.warn('Video pause failed', err); }
+  layers.forEach((layer) => {
+    try { layer.video && layer.video.pause(); } catch (err) { console.warn('Video pause failed', err); }
+  });
   try { audio && audio.pause(); } catch (err) { console.warn('Audio pause failed', err); }
 }
 
@@ -156,7 +183,28 @@ function tryPlay(el, label) {
   });
 }
 
-// --- Show item / crossfade ---
+function chooseIncomingLayer() {
+  // simple A/B toggle for visuals
+  if (!activeLayer || activeLayer === layerB) return layerA;
+  return layerB;
+}
+
+function fadeOutLayer(layer) {
+  if (!layer) return;
+  [layer.img, layer.video].forEach((el) => {
+    if (!el || el.classList.contains('hidden')) return;
+
+    el.classList.remove('fade-in');
+    el.classList.add('fade-out');
+
+    el.addEventListener('transitionend', () => {
+      resetMediaElement(el);
+      if (el === currentMediaEl) {
+        currentMediaEl = null;
+      }
+    }, { once: true });
+  });
+}
 
 function showItem(item) {
   console.log('Display got item:', item);
@@ -166,41 +214,24 @@ function showItem(item) {
   // Stop any currently playing media
   pauseMedia();
 
-  const elements = [img, video, audio];
-
-  // Crossfade out any currently visible elements
-  elements.forEach((el) => {
-    if (!el || el.classList.contains('hidden')) return;
-
-    el.classList.remove('fade-in');
-    el.classList.add('fade-out');
-
-    el.addEventListener('transitionend', () => {
-      el.classList.add('hidden');
-      el.classList.remove('fade-out');
-
-      // Clear media source to stop playback
-      if (el.tagName === 'VIDEO' || el.tagName === 'AUDIO') {
-        el.onerror = null;
-        el.removeAttribute('src');
-        if (typeof el.load === 'function') {
-          try { el.load(); } catch (err) { console.warn('Load reset failed', err); }
-        }
-        if (el === currentMediaEl) {
-          currentMediaEl = null;
-        }
-      }
-
-      if (el.tagName === 'IMG') {
-        el.removeAttribute('src');
+  // Crossfade out currently visible visuals/audio
+  fadeOutLayer(activeLayer);
+  if (audio && !audio.classList.contains('hidden')) {
+    audio.classList.remove('fade-in');
+    audio.classList.add('fade-out');
+    audio.addEventListener('transitionend', () => {
+      resetMediaElement(audio);
+      if (audio === currentMediaEl) {
+        currentMediaEl = null;
       }
     }, { once: true });
-  });
+  }
 
   if (!item) {
     blackout?.classList.remove('hidden');
     currentType = null;
     currentMediaEl = null;
+    activeLayer = null;
     window.presenterAPI.send('display:playback-progress', { currentTime: 0, duration: 0 });
     return;
   }
@@ -210,57 +241,72 @@ function showItem(item) {
     currentType = item.type || null;
     currentMediaEl = null;
 
-    elements.forEach((el) => {
-      if (!el) return;
-      el.classList.remove('fade-in', 'fade-out');
+    layers.forEach((layer) => {
+      [layer.img, layer.video].forEach((el) => el?.classList.remove('fade-in', 'fade-out'));
     });
+    audio?.classList.remove('fade-in', 'fade-out');
+
+    const incomingLayer = chooseIncomingLayer();
 
     if (item.type === 'image') {
-      img.onerror = (e) => notifyError('Unable to load image.', e);
-      img.src = fileURL(item.path);
-      img.classList.remove('hidden');
-      img.classList.add('fade-in');
-      blackout?.classList.add('hidden');
+      if (incomingLayer?.img) {
+        incomingLayer.img.onerror = (e) => notifyError('Unable to load image.', e);
+        incomingLayer.img.src = fileURL(item.path);
+        incomingLayer.img.classList.remove('hidden');
+        incomingLayer.img.classList.add('fade-in');
+        incomingLayer.video?.classList.add('hidden');
+      }
 
+      blackout?.classList.add('hidden');
       currentMediaEl = null;
+      activeLayer = incomingLayer;
       window.presenterAPI.send('display:playback-progress', { currentTime: 0, duration: 0 });
     } else if (item.type === 'audio') {
-      audio.onerror = (e) => notifyError('Unable to load audio.', e);
-      audio.src = fileURL(item.path);
-      audio.classList.remove('hidden');
-      audio.classList.add('fade-in');
-      currentMediaEl = audio;
+      if (audio) {
+        audio.onerror = (e) => notifyError('Unable to load audio.', e);
+        audio.src = fileURL(item.path);
+        audio.classList.remove('hidden');
+        audio.classList.add('fade-in');
+        currentMediaEl = audio;
+        audio.play().catch((err) => console.error('Failed to autoplay audio:', err));
+      }
 
-      audio.play().catch((err) => console.error('Failed to autoplay audio:', err));
-
-      if (item.displayImage) {
-        img.onerror = (e) => notifyError('Unable to load display image.', e);
-        img.src = fileURL(item.displayImage);
-        img.classList.remove('hidden');
-        img.classList.add('fade-in');
+      if (item.displayImage && incomingLayer?.img) {
+        incomingLayer.img.onerror = (e) => notifyError('Unable to load display image.', e);
+        incomingLayer.img.src = fileURL(item.displayImage);
+        incomingLayer.img.classList.remove('hidden');
+        incomingLayer.img.classList.add('fade-in');
+        incomingLayer.video?.classList.add('hidden');
         blackout?.classList.add('hidden');
+        activeLayer = incomingLayer;
       } else {
-        // No image: keep screen black behind the audio
         blackout?.classList.remove('hidden');
+        activeLayer = null;
       }
     } else if (item.type === 'video') {
       const videoPath = fileURL(item.path);
       console.log('Resolved video path:', videoPath);
 
-      video.onerror = (e) => {
-        console.error(`Unable to load video at ${videoPath}.`, e);
-        notifyError(`Unable to load video at ${videoPath}. Error: ${e.message || e}`);
-      };
+      if (incomingLayer?.video) {
+        incomingLayer.video.onerror = (e) => {
+          console.error(`Unable to load video at ${videoPath}.`, e);
+          notifyError(`Unable to load video at ${videoPath}. Error: ${e.message || e}`);
+        };
 
-      video.src = videoPath;
-      video.setAttribute('playsinline', '');
-      video.classList.remove('hidden');
-      video.classList.add('fade-in');
-      blackout?.classList.add('hidden');
+        incomingLayer.video.src = videoPath;
+        incomingLayer.video.setAttribute('playsinline', '');
+        incomingLayer.video.classList.remove('hidden');
+        incomingLayer.video.classList.add('fade-in');
+        incomingLayer.img?.classList.add('hidden');
+        blackout?.classList.add('hidden');
 
-      currentMediaEl = video;
+        currentMediaEl = incomingLayer.video;
+        activeLayer = incomingLayer;
 
-      video.play().catch((err) => console.error('Failed to autoplay video:', err));
+        incomingLayer.video.play().catch((err) => console.error('Failed to autoplay video:', err));
+      } else {
+        notifyError('Unable to load video: no video element available.', new Error('missing video element'));
+      }
     } else {
       notifyError('Unsupported media type.', new Error(item.type));
     }
@@ -270,20 +316,22 @@ function showItem(item) {
 // --- Event wiring ---
 
 // Progress + ended (guarded for null elements)
-if (video) {
-  video.onended = () => {
-    window.presenterAPI.send('display:ended');
-  };
-} else {
-  console.warn('[DISPLAY] No <video id="video"> element found for onended');
-}
+layers.forEach((layer) => {
+  if (layer.video) {
+    layer.video.onended = () => {
+      window.presenterAPI.send('display:ended');
+    };
+  } else {
+    console.warn(`[DISPLAY] No <video id="video${layer.name}"> element found for onended`);
+  }
+});
 
 if (audio) {
   audio.onended = () => {
     window.presenterAPI.send('display:ended');
   };
 } else {
-  console.warn('[DISPLAY] No <audio id="audio"> element found for onended');
+  console.warn('[DISPLAY] No <audio id="audioEl"> element found for onended');
 }
 
 // From Main/Control
@@ -307,15 +355,16 @@ window.presenterAPI.onProgramEvent('display:pause', () => {
 });
 
 window.presenterAPI.onProgramEvent('display:play', () => {
-  if (!video.classList.contains('hidden')) {
-    tryPlay(video, 'video');
+  const activeVideo = activeLayer?.video;
+  if (activeVideo && !activeVideo.classList.contains('hidden')) {
+    tryPlay(activeVideo, 'video');
   }
-  if (!audio.classList.contains('hidden')) {
+  if (audio && !audio.classList.contains('hidden')) {
     tryPlay(audio, 'audio');
   }
 });
 
-// NEW: handle seek from Control
+// Robust seek handling for Control scrubber -> Main -> Display
 window.presenterAPI.onProgramEvent('display:seek', (payload) => {
   if (!payload || typeof payload.time !== 'number' || !Number.isFinite(payload.time)) {
     return;
@@ -332,7 +381,8 @@ window.presenterAPI.onProgramEvent('display:seek', (payload) => {
   const dur = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : null;
   const clamped = dur ? Math.min(target, dur) : target;
 
-  console.log('[DISPLAY] display:seek received time', target, '→ clamped to', clamped);
+  // Helpful diagnostics to track which element handled the seek and why.
+  console.log('[DISPLAY] display:seek received', payload, '→ using element', !!el, 'duration', dur);
 
   try {
     el.currentTime = clamped;
