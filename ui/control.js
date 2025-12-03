@@ -841,6 +841,46 @@ function setupDropTarget(target, onDrop) {
   });
 }
 
+function setupGlobalFileDrop() {
+  const root = document.body;
+  if (!root) return;
+
+  const handleDragOver = (event) => {
+    if (!event.dataTransfer) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDrop = (event) => {
+    if (!event.dataTransfer) return;
+    event.preventDefault();
+
+    if (draggingId || getDraggedMediaIdFromEvent(event)) {
+      return;
+    }
+
+    const files = Array.from(event.dataTransfer.files || []);
+    if (!files.length) {
+      console.log('[CONTROL] drop had no files');
+      return;
+    }
+
+    const paths = files
+      .map((file) => file.path)
+      .filter((p) => typeof p === 'string' && p.length > 0);
+
+    if (!paths.length) {
+      console.log('[CONTROL] drop had files but no usable paths');
+      return;
+    }
+
+    addPathsToMedia(paths);
+  };
+
+  root.addEventListener('dragover', handleDragOver);
+  root.addEventListener('drop', handleDrop);
+}
+
 setupDropTarget(grid, (paths) => {
   addPathsToMedia(paths);
 });
@@ -848,6 +888,8 @@ setupDropTarget(grid, (paths) => {
 setupDropTarget(leftPanel, (paths) => {
   addPathsToMedia(paths);
 });
+
+setupGlobalFileDrop();
 
 setupDisplayScrubber();
 updateDisplayUI();
