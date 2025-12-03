@@ -51,7 +51,7 @@ button:active {
 
 .right-panel {
   display: grid;
-  grid-template-rows: 1fr 0.8fr;
+  grid-template-rows: auto 1fr 0.8fr;
   gap: 16px;
   min-height: 0;
 }
@@ -87,6 +87,17 @@ button:active {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+.display-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 10px 12px 14px;
+}
+
+.display-progress-row input[type="range"] {
+  flex: 1;
 }
 
 .preview-stage,
