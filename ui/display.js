@@ -523,7 +523,7 @@ window.presenterAPI.onProgramEvent('display:seek', (payload) => {
     return;
   }
 
-  console.log('[DISPLAY] display:seek payload', payload, 'currentMediaEl?', !!currentMediaEl);
+  console.log('[DISPLAY] display:seek payload', payload, 'currentMediaEl?', !!currentMediaEl, 'tagName', currentMediaEl?.tagName, 'src', currentMediaEl?.src);
   const target = Math.max(0, payload.time);
   const el = currentMediaEl;
 
@@ -538,7 +538,12 @@ window.presenterAPI.onProgramEvent('display:seek', (payload) => {
   console.log('[DISPLAY] display:seek received time', target, '→ clamped to', clamped);
 
   try {
+    console.log('[DISPLAY] before seek', { currentTime: el.currentTime, duration: el.duration });
     el.currentTime = clamped;
+    if (el.paused) {
+      el.play().catch((err) => console.warn('Play after seek failed', err));
+    }
+    console.log('[DISPLAY] after assigning currentTime', { currentTime: el.currentTime, duration: el.duration });
   } catch (err) {
     console.warn('Seek failed on media element', err);
   }
