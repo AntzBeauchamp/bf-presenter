@@ -137,6 +137,66 @@ function updateDisplayUI() {
   displayTimeLabel.textContent = `${formatTime(current)} / ${formatTime(duration)}`;
 }
 
+function getDroppedFilePaths(event) {
+  const dt = event.dataTransfer;
+  const results = [];
+
+  if (!dt) return results;
+
+  // 1) Try File.path if Electron exposes it
+  if (dt.files && dt.files.length) {
+    for (const f of Array.from(dt.files)) {
+      if (f.path && typeof f.path === 'string' && f.path.trim() !== '') {
+        results.push(f.path);
+      }
+    }
+  }
+
+  // 2) Try text/uri-list (Explorer often sets this)
+  try {
+    const uriList = dt.getData('text/uri-list');
+    if (uriList) {
+      uriList
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith('#'))
+        .forEach((uri) => {
+          if (uri.startsWith('file://')) {
+            let p = uri.replace(/^file:\/\//, '');
+            // Decode URL encoding (%20, etc)
+            try { p = decodeURI(p); } catch {}
+            // On Windows, convert forward slashes to backslashes
+            if (/^[a-zA-Z]:\//.test(p)) {
+              p = p.replace(/\//g, '\\');
+            }
+            results.push(p);
+          }
+        });
+    }
+  } catch (e) {
+    console.warn('[CONTROL-EXTERNAL-DROP] Failed to read text/uri-list', e);
+  }
+
+  // 3) Fallback to text/plain if it looks like a file:// URL
+  if (!results.length) {
+    try {
+      const txt = dt.getData('text/plain');
+      if (txt && txt.startsWith('file://')) {
+        let p = txt.replace(/^file:\/\//, '');
+        try { p = decodeURI(p); } catch {}
+        if (/^[a-zA-Z]:\//.test(p)) {
+          p = p.replace(/\//g, '\\');
+        }
+        results.push(p);
+      }
+    } catch (e) {
+      console.warn('[CONTROL-EXTERNAL-DROP] Failed to read text/plain', e);
+    }
+  }
+
+  return results;
+}
+
 function appendLog(entry) {
   if (!entry || !loggerBody) return;
 
@@ -792,6 +852,65 @@ grid?.addEventListener('click', () => {
   // absorb stray clicks so the grid keeps focus when empty
 });
 
+function getDroppedFilePaths(e) {
+  const dt = e.dataTransfer;
+  const results = [];
+
+  if (!dt) return results;
+
+  // 1) Try File.path if Electron exposes it
+  if (dt.files && dt.files.length) {
+    for (const f of Array.from(dt.files)) {
+      if (f.path && typeof f.path === 'string' && f.path.trim() !== '') {
+        results.push(f.path);
+      }
+    }
+  }
+
+  // 2) Try text/uri-list (Explorer often sets this)
+  try {
+    const uriList = dt.getData('text/uri-list');
+    if (uriList) {
+      uriList
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith('#'))
+        .forEach((uri) => {
+          if (uri.startsWith('file://')) {
+            let p = uri.replace(/^file:\/\//, '');
+            try { p = decodeURI(p); } catch {}
+            // On Windows, convert forward slashes to backslashes
+            if (/^[a-zA-Z]:\//.test(p)) {
+              p = p.replace(/\//g, '\\');
+            }
+            results.push(p);
+          }
+        });
+    }
+  } catch (err) {
+    console.warn('[CONTROL-EXTERNAL-DROP] Failed to read text/uri-list', err);
+  }
+
+  // 3) Fallback: text/plain with a file:// URL
+  if (!results.length) {
+    try {
+      const txt = dt.getData('text/plain');
+      if (txt && txt.startsWith('file://')) {
+        let p = txt.replace(/^file:\/\//, '');
+        try { p = decodeURI(p); } catch {}
+        if (/^[a-zA-Z]:\//.test(p)) {
+          p = p.replace(/\//g, '\\');
+        }
+        results.push(p);
+      }
+    } catch (err) {
+      console.warn('[CONTROL-EXTERNAL-DROP] Failed to read text/plain', err);
+    }
+  }
+
+  return results;
+}
+
 function setupDisplayScrubber() {
   if (!displayScrubber) return;
 
@@ -835,58 +954,80 @@ function setupDropTarget(target, onDrop) {
   target.addEventListener('drop', (event) => {
     event.preventDefault();
     target.classList.remove('droppable');
-    const paths = Array.from(event.dataTransfer?.files || []).map((file) => file.path).filter(Boolean);
+
+    const dt = event.dataTransfer;
+    if (!dt) return;
+
+    let paths = [];
+
+    // 1) First, try the standard Electron file paths (this is what INTERNAL
+    //    drag-and-drop was using when it worked).
+    if (dt.files && dt.files.length) {
+      paths = Array.from(dt.files)
+        .map((file) => file.path)
+        .filter((p) => typeof p === 'string' && p.trim() !== '');
+    }
+
+    // 2) If we didn’t get anything (Explorer issue), fall back to the helper
+    if (!paths.length) {
+      paths = getDroppedFilePaths(event);
+    }
+
     if (!paths.length) return;
+
     onDrop(paths);
   });
 }
 
-  function setupExplorerFileDrop() {
-    const root = document.body;
-    if (!root) return;
 
-    const handleDragOver = (e) => {
-      const files = Array.from(e.dataTransfer?.files || []);
-      console.log('[CONTROL-EXTERNAL-DROP] dragover files length:', files.length);
-      if (!files.length) return;
-      e.preventDefault();
-      if (e.dataTransfer) {
-        e.dataTransfer.dropEffect = 'copy';
-      }
-    };
+// function setupExplorerFileDrop() {
+// const root = document.body;
+// if (!root) return;
 
-    const handleDrop = (e) => {
-      if (!e.dataTransfer) return;
+// const handleDragOver = (e) => {
+//   const dt = e.dataTransfer;
+//   const files = Array.from(dt?.files || []);
+//   console.log('[CONTROL-EXTERNAL-DROP] dragover files length:', files.length);
 
-      const files = Array.from(e.dataTransfer.files || []);
-      console.log('[CONTROL-EXTERNAL-DROP] drop files length:', files.length);
-      if (!files.length) return;
+//   // Use types to detect file drags even when dt.files is still empty
+//   if (!dt || !(dt.types && Array.from(dt.types).includes('Files'))) {
+//     return;
+//   }
 
-      e.preventDefault();
+//   e.preventDefault();
+//   dt.dropEffect = 'copy';
+// };
 
-      const paths = files
-        .map((file) => file.path)
-        .filter((p) => typeof p === 'string' && p.length > 0);
+// const handleDrop = (e) => {
+//   if (!e.dataTransfer) return;
 
-      console.log('[CONTROL-EXTERNAL-DROP] file paths:', paths);
+//   const files = Array.from(e.dataTransfer.files || []);
+//   console.log('[CONTROL-EXTERNAL-DROP] drop files length:', files.length);
 
-      if (!paths.length) return;
+//   const paths = getDroppedFilePaths(e);
+//   console.log('[CONTROL-EXTERNAL-DROP] file paths (resolved):', paths);
 
-      const before = media.length;
-      addPathsToMedia(paths);
+//   if (!paths.length) return;
 
-      const firstNew = media[before];
-      if (firstNew) {
-        nextUpId = firstNew.id;
-        renderNextUp(firstNew);
-      }
+//   e.preventDefault();
+//   e.stopPropagation();
 
-      renderMediaGrid();
-    };
+//   const before = media.length;
+//   addPathsToMedia(paths);
 
-    root.addEventListener('dragover', handleDragOver);
-    root.addEventListener('drop', handleDrop);
-  }
+//   const firstNew = media[before];
+//   if (firstNew) {
+//     nextUpId = firstNew.id;
+//     renderNextUp(firstNew);
+//   }
+
+//   renderMediaGrid();
+// };
+
+//   root.addEventListener('dragover', handleDragOver);
+//   root.addEventListener('drop', handleDrop);
+// }
+
 
 setupDropTarget(grid, (paths) => {
   addPathsToMedia(paths);
@@ -1021,6 +1162,61 @@ window.presenterAPI?.onProgramEvent?.('display:ended', () => {
     console.log('CONTROL: No Preview or Next Up — show fallback background');
   }
 });
+
+// // --- Global external file drag & drop (Explorer -> add to media) ---
+// document.addEventListener('dragover', (event) => {
+//   const dt = event.dataTransfer;
+//   if (!dt || !dt.files || dt.files.length === 0) {
+//     return; // ignore internal drags / non-file drags
+//   }
+
+//   event.preventDefault();
+//   dt.dropEffect = 'copy';
+// });
+
+// --- Global external file drag & drop (Explorer -> add to media) ---
+// document.addEventListener('dragover', (event) => {
+//   const dt = event.dataTransfer;
+//   // Debug log
+//   console.log('[GLOBAL DRAGOVER] dt.files length =', dt?.files?.length);
+
+//   if (!dt || !dt.files || dt.files.length === 0) {
+//     // No real files – probably internal drag, let other handlers deal with it
+//     return;
+//   }
+
+//   event.preventDefault();
+//   dt.dropEffect = 'copy';
+// });
+
+document.addEventListener('drop', (event) => {
+  const dt = event.dataTransfer;
+  console.log('[GLOBAL DROP] event received, dt.files length =', dt?.files?.length);
+
+  if (!dt || !dt.files || dt.files.length === 0) {
+    console.log('[GLOBAL DROP] No files on dataTransfer, ignoring');
+    return; // ignore internal drags / non-file drags
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  const paths = Array.from(dt.files || [])
+    .map((file) => file.path)
+    .filter(Boolean);
+
+  console.log('[GLOBAL DROP] paths =', paths);
+
+  if (!paths.length) {
+    console.log('[GLOBAL DROP] No usable paths after filter');
+    return;
+  }
+
+  // Reuse the same helper the Add Media button uses
+  console.log('[GLOBAL DROP] calling addPathsToMedia with', paths.length, 'paths');
+  addPathsToMedia(paths);
+});
+
 
 renderNextUp(null);
 renderMediaGrid();
