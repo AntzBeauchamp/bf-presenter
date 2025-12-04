@@ -1,3 +1,6 @@
+// CHANGES:
+// - Disabled media grid click/dblclick actions that auto-loaded Preview/Program.
+// - Kept drag-and-drop and button-based controls unchanged.
 const btnAdd = document.getElementById('btnAdd');
 const btnPush = document.getElementById('btnPush');
 const btnClearPreview = document.getElementById('btnClearPreview');
@@ -409,14 +412,13 @@ function buildThumb(item, { interactive = true } = {}) {
       } else {
         container.classList.remove('selected');
       }
-
-      stageNext(item.id);
+      // Click-to-stage / double-click-to-preview disabled by request
     });
 
     container.addEventListener('dblclick', () => {
       selectedMediaIds.clear();
       selectedMediaIds.add(item.id);
-      previewItem(item.id);
+      // Click-to-stage / double-click-to-preview disabled by request
     });
 
     container.addEventListener('dragstart', (e) => {
