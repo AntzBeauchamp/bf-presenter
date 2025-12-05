@@ -350,13 +350,13 @@ function buildThumb(item, { interactive = true } = {}) {
         container.classList.remove('selected');
       }
 
-      stageNext(item.id);
+      // stageNext(item.id);
     });
 
     container.addEventListener('dblclick', () => {
       selectedMediaIds.clear();
       selectedMediaIds.add(item.id);
-      previewItem(item.id);
+      // previewItem(item.id);
     });
 
     container.addEventListener('dragstart', (e) => {

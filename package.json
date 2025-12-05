@@ -1,13 +1,15 @@
 {
   "name": "bf-presenter",
-  "version": "1.5.0",
+  "version": "1.6.1",
   "main": "main.js",
   "type": "module",
   "scripts": {
     "start": "electron .",
     "preclean:win": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"taskkill /IM 'BF Presenter.exe' /F 2>$null; taskkill /IM electron.exe /F 2>$null; taskkill /IM node.exe /F 2>$null\"",
     "dist:win:portable": "npm run preclean:win && electron-builder --win portable",
-    "dist:win:zip": "npm run dist:win:portable && powershell -NoProfile -ExecutionPolicy Bypass -Command \"Compress-Archive -Path .\\release\\$env:npm_package_version\\win-unpacked\\* -DestinationPath .\\release\\$env:npm_package_version\\BF-Presenter-Portable.zip -Force\""
+    "dist:win:zip": "npm run dist:win:portable && powershell -NoProfile -ExecutionPolicy Bypass -Command \"Compress-Archive -Path .\\release\\$env:npm_package_version\\win-unpacked\\* -DestinationPath .\\release\\$env:npm_package_version\\BF-Presenter-Portable.zip -Force\"",
+    "dist:win:installer": "electron-builder --win nsis",
+    "dist:win:dir": "npm run preclean:win && electron-builder --dir"
   },
   "devDependencies": {
     "electron": "^38.2.1",
@@ -17,7 +19,7 @@
     "appId": "nz.bf.presenter",
     "productName": "BF Presenter",
     "directories": {
-      "output": "release/${version}"
+      "output": "dist"
     },
     "files": [
       "dist/**/*",
@@ -35,7 +37,7 @@
     ],
     "asar": true,
     "win": {
-      "target": "portable",
+      "target": "nsis",
       "icon": "BF_presenter_icon.ico"
     },
     "nsis": {
