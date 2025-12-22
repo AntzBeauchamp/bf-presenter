@@ -7,6 +7,8 @@ const btnNext = document.getElementById('btnNext');
 const btnRepeatToggle = document.getElementById('btnRepeatToggle');
 const btnBlankToggle = document.getElementById('btnBlankToggle');
 const btnBackground = document.getElementById('btnBackground');
+const btnAutoPlay = document.getElementById('btnAutoPlay');
+const btnStop = document.getElementById('btnStop');
 const btnPlayNextUp = document.getElementById('btnPlayNext');
 const btnClearNext = document.getElementById('btnClearNext');
 const btnSetImage = document.getElementById('btnSetImage');
@@ -56,6 +58,7 @@ function moveInArray(arr, fromIdx, toIdx) {
 let isProgramBlanked = false;
 let isProgramPlaying = false;
 let isRepeatEnabled = false;
+let autoPlayEnabled = true;
 let displayCurrentTime = 0;
 let displayDuration = 0;
 let isDisplayScrubbing = false;
@@ -87,8 +90,28 @@ btnRepeatToggle.onclick = () => {
   window.presenterAPI.setRepeat(isRepeatEnabled);
 };
 
+function updateAutoPlayUI() {
+  if (!btnAutoPlay) return;
+  if (autoPlayEnabled) {
+    btnAutoPlay.textContent = 'Auto-Play On';
+    btnAutoPlay.classList.add('auto-play-active');
+  } else {
+    btnAutoPlay.textContent = 'Auto-Play Off';
+    btnAutoPlay.classList.remove('auto-play-active');
+  }
+}
+
+if (btnAutoPlay) {
+  btnAutoPlay.onclick = () => {
+    autoPlayEnabled = !autoPlayEnabled;
+    updateAutoPlayUI();
+    console.log('CONTROL: Auto-play toggled to', autoPlayEnabled ? 'ON' : 'OFF');
+  };
+}
+
 updatePlayToggleUI(false);
 updateRepeatButton();
+updateAutoPlayUI();
 
 function fileUrl(p) {
   try {
@@ -756,6 +779,19 @@ btnPlay?.addEventListener('click', () => {
     updatePlayToggleUI(true);
   }
 });
+
+if (btnStop) {
+  btnStop.onclick = () => {
+    window.presenterAPI.stop?.();
+    window.presenterAPI.setBackground?.();
+    updatePlayToggleUI(false);
+    programId = null;
+    index = -1;
+    renderMediaGrid();
+    console.log('CONTROL: Stopped playback and reverted to background');
+  };
+}
+
 btnNext?.addEventListener('click', () => window.presenterAPI?.next?.());
 btnPrev?.addEventListener('click', () => window.presenterAPI?.prev?.());
 
@@ -955,21 +991,32 @@ window.presenterAPI?.onProgramEvent?.('display:playback-progress', (payload) => 
 });
 
 window.presenterAPI?.onProgramEvent?.('display:ended', () => {
-  console.log('CONTROL: Display finished playback, advancing media');
+  console.log('CONTROL: Display finished playback');
   displayCurrentTime = 0;
   displayDuration = 0;
   updateDisplayUI();
-  const pushed = pushAtomicFromPreviewAndBackfill();
 
-  if (!pushed) {
+  if (autoPlayEnabled) {
+    console.log('CONTROL: Auto-play enabled, advancing media');
+    const pushed = pushAtomicFromPreviewAndBackfill();
+
+    if (!pushed) {
+      updatePlayToggleUI(false);
+      programId = null;
+      index = -1;
+      renderMediaGrid();
+    }
+
+    if (!previewId && !nextUpId) {
+      console.log('CONTROL: No Preview or Next Up — show fallback background');
+    }
+  } else {
+    console.log('CONTROL: Auto-play disabled, reverting to background');
+    window.presenterAPI.setBackground?.();
     updatePlayToggleUI(false);
     programId = null;
     index = -1;
     renderMediaGrid();
-  }
-
-  if (!previewId && !nextUpId) {
-    console.log('CONTROL: No Preview or Next Up — show fallback background');
   }
 });
 

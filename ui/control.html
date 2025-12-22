@@ -27,10 +27,17 @@
         </div>
       </section>
 
+      <div class="playback-controls">
+        <button id="btnPlay" aria-label="Play" title="Play">▶</button>
+        <button id="btnBlankToggle">Blank</button>
+        <button id="btnStop" title="Stop and revert to background">⏹</button>
+      </div>
+
       <section class="card preview-card">
         <header>
           Preview
           <div>
+            <button id="btnAutoPlay" title="Toggle auto-play when media ends">Auto-Play On</button>
             <button id="btnPush">Push to Display</button>
             <button id="btnClearPreview" title="Clear preview">Clear</button>
           </div>
@@ -56,12 +63,7 @@
 
   <footer class="toolbar">
     <button id="btnAdd">Add Media</button>
-    <button id="btnPlay" aria-label="Play" title="Play">▶</button>
-    <button id="btnPrev" aria-label="Previous" title="Previous">⏮</button>
-    <button id="btnNext" aria-label="Next" title="Next">⏭</button>
-    <button id="btnRepeatToggle" aria-pressed="false" title="Repeat off">Repeat: Off</button>
-    <button id="btnBlankToggle">Blank</button>
-    <button id="btnBackground">Background</button>
+    <button id="btnBackground">Set Background</button>
   </footer>
 
   <section class="card logger-card" id="loggerCard">
