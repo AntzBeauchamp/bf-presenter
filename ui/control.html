@@ -25,13 +25,13 @@
           />
           <span id="displayTimeLabel">0:00 / 0:00</span>
         </div>
+        <div class="playback-controls">
+          <button id="btnPlay" aria-label="Play" title="Play">▶</button>
+          <button id="btnRepeatToggle" aria-pressed="false" title="Repeat off">Repeat: Off</button>
+          <button id="btnBlankToggle">Blank</button>
+          <button id="btnStop" title="Go to background">Background</button>
+        </div>
       </section>
-
-      <div class="playback-controls">
-        <button id="btnPlay" aria-label="Play" title="Play">▶</button>
-        <button id="btnBlankToggle">Blank</button>
-        <button id="btnStop" title="Stop and revert to background">⏹</button>
-      </div>
 
       <section class="card preview-card">
         <header>
@@ -50,7 +50,7 @@
           Stage
           <div class="nextup-actions">
             <button id="btnSetImage">Set Display Image</button>
-            <button id="btnPlayNext">Push to Preview</button>
+            <button id="btnStageMoreToggle" aria-pressed="false" title="Enable Stage More ordering">Stage more…</button>
             <button id="btnClearNext">Clear</button>
           </div>
         </header>
@@ -62,7 +62,8 @@
   </div>
 
   <footer class="toolbar">
-    <button id="btnAdd">Add Media</button>
+    <button id="btnViewToggle" title="Switch between grid and list views">List View</button>
+    <button id="btnAdd">Select Media</button>
     <button id="btnBackground">Set Background</button>
   </footer>
 

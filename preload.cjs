@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('presenterAPI', {
   pause: () => ipcRenderer.send('display:pause'),
   black: () => ipcRenderer.send('display:black'),
   unblack: () => ipcRenderer.send('display:unblack'),
+  showBackground: () => ipcRenderer.send('display:show-background'),
   toFileURL: (absPath) => pathToFileURL(absPath).href,
   send: (channel, payload) => ipcRenderer.send(channel, payload),
   onProgramEvent: (channel, cb) => ipcRenderer.on(channel, (_e, data) => cb(data)),

@@ -16,6 +16,15 @@ button {
   transition: background 120ms ease, border-color 120ms ease, transform 90ms ease;
 }
 
+/* Background preview on the Display button */
+#btnStop.background-has-image {
+  color: #000;
+  font-weight: 700;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
 #btnSetImage,
 #btnPrev,
 #btnNext {
@@ -51,7 +60,7 @@ button:active {
 
 .right-panel {
   display: grid;
-  grid-template-rows: auto auto 1fr 0.8fr;
+  grid-template-rows: auto 1fr 0.8fr;
   gap: 16px;
   min-height: 0;
 }
@@ -100,22 +109,6 @@ button:active {
   flex: 1;
 }
 
-.playback-controls {
-  display: flex;
-  gap: 8px;
-  padding: 8px 12px;
-  background: #131313;
-  border: 1px solid #0f0f0f;
-  border-radius: 14px;
-  justify-content: center;
-}
-
-.playback-controls button {
-  min-width: 60px;
-  padding: 6px 10px;
-  font-size: 0.9rem;
-}
-
 .preview-stage,
 .nextup-stage {
   flex: 1;
@@ -137,8 +130,7 @@ button:active {
 }
 
 .playback-controls {
-  display: grid;
-  grid-auto-flow: column;
+  display: flex;
   gap: 8px;
   padding: 8px 12px;
   border-top: 1px solid #1e1e1e;
@@ -150,7 +142,7 @@ button:active {
 .playback-controls button {
   min-width: 60px;
   padding: 6px 10px;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
 }
 
 .nextup-placeholder {
@@ -167,6 +159,36 @@ button:active {
   gap: 12px;
 }
 
+/* List view layout for media grid */
+.thumb-grid.list-view {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.thumb-grid.list-view .thumb {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  align-items: center;
+  min-height: 72px;
+  padding: 6px 8px;
+}
+
+.thumb-grid.list-view .thumb img,
+.thumb-grid.list-view .thumb .thumb-poster {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+}
+
+.thumb-grid.list-view .thumb .meta {
+  padding: 0 10px;
+}
+
+.thumb-grid.list-view .thumb .meta .name {
+  font-size: 0.95rem;
+}
+
 .thumb {
   position: relative;
   background: #111;
@@ -175,6 +197,36 @@ button:active {
   overflow: hidden;
   cursor: pointer;
   transition: border-color 120ms ease, transform 90ms ease;
+}
+
+/* Stage more overlays */
+.stage-overlay {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0,0,0,0.45);
+  padding: 4px 6px;
+  border-radius: 999px;
+}
+.thumb-grid.stagemore-mode .stage-overlay {
+  display: inline-flex;
+}
+.stage-overlay input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+}
+.stage-index {
+  display: inline-block;
+  min-width: 20px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: #fff;
+  background: rgba(58,134,255,0.85);
+  border-radius: 6px;
+  padding: 2px 6px;
 }
 
 .thumb:hover {
@@ -279,7 +331,8 @@ button:active {
   display: grid;
   grid-auto-flow: column;
   align-items: center;
-  justify-content: space-evenly;
+  justify-content: flex-start;
+  column-gap: 12px;
   padding: 0 12px;
 }
 

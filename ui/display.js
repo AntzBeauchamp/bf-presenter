@@ -523,6 +523,13 @@ window.presenterAPI.onProgramEvent('display:unblack', () => {
   }
 });
 
+window.presenterAPI.onProgramEvent('display:show-background', () => {
+  console.log('DISPLAY: show-background requested');
+  pauseCurrent();
+  hideAllVisuals();
+  showBackgroundFallback();
+});
+
 window.presenterAPI.onProgramEvent('display:set-background', (absPath) => {
   backgroundImagePath = absPath || null;
   console.log('DISPLAY: background set to', backgroundImagePath || 'none');

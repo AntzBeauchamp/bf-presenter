@@ -9,9 +9,10 @@ const btnBlankToggle = document.getElementById('btnBlankToggle');
 const btnBackground = document.getElementById('btnBackground');
 const btnAutoPlay = document.getElementById('btnAutoPlay');
 const btnStop = document.getElementById('btnStop');
-const btnPlayNextUp = document.getElementById('btnPlayNext');
+const btnViewToggle = document.getElementById('btnViewToggle');
 const btnClearNext = document.getElementById('btnClearNext');
 const btnSetImage = document.getElementById('btnSetImage');
+const btnStageMoreToggle = document.getElementById('btnStageMoreToggle');
 const displayScrubber = document.getElementById('displayScrubber');
 const displayTimeLabel = document.getElementById('displayTimeLabel');
 
@@ -62,6 +63,10 @@ let autoPlayEnabled = true;
 let displayCurrentTime = 0;
 let displayDuration = 0;
 let isDisplayScrubbing = false;
+let stageMoreEnabled = false;
+let stageMoreOrder = [];
+let stageMoreCursor = 0;
+let isListView = false;
 
 function updatePlayToggleUI(playing) {
   isProgramPlaying = !!playing;
@@ -112,6 +117,133 @@ if (btnAutoPlay) {
 updatePlayToggleUI(false);
 updateRepeatButton();
 updateAutoPlayUI();
+initStageMoreState();
+initViewMode();
+
+function updateBackgroundButtonUI(absPath) {
+  if (!btnStop) return;
+  if (absPath) {
+    try {
+      const url = fileUrl(absPath);
+      btnStop.style.backgroundImage = `url(${JSON.stringify(url).slice(1,-1)})`;
+      btnStop.classList.add('background-has-image');
+      btnStop.title = 'Background (image set)';
+    } catch {
+      btnStop.style.backgroundImage = '';
+      btnStop.classList.remove('background-has-image');
+      btnStop.title = 'Background (no image set)';
+    }
+  } else {
+    btnStop.style.backgroundImage = '';
+    btnStop.classList.remove('background-has-image');
+    btnStop.title = 'Background (no image set)';
+  }
+}
+
+function saveStageMoreState() {
+  try {
+    localStorage.setItem('stageMoreEnabled', stageMoreEnabled ? '1' : '0');
+    localStorage.setItem('stageMoreOrder', JSON.stringify(stageMoreOrder));
+    localStorage.setItem('stageMoreCursor', String(stageMoreCursor));
+  } catch {}
+}
+
+function initStageMoreState() {
+  try {
+    stageMoreEnabled = localStorage.getItem('stageMoreEnabled') === '1';
+    const savedOrder = JSON.parse(localStorage.getItem('stageMoreOrder') || '[]');
+    stageMoreOrder = Array.isArray(savedOrder) ? savedOrder : [];
+    const cur = parseInt(localStorage.getItem('stageMoreCursor') || '0', 10);
+    stageMoreCursor = Number.isFinite(cur) && cur >= 0 ? cur : 0;
+  } catch {}
+  applyStageMoreUI();
+}
+
+function applyStageMoreUI() {
+  if (grid) grid.classList.toggle('stagemore-mode', stageMoreEnabled);
+  if (btnStageMoreToggle) {
+    btnStageMoreToggle.setAttribute('aria-pressed', String(stageMoreEnabled));
+    btnStageMoreToggle.textContent = stageMoreEnabled ? 'Stage more: On' : 'Stage more…';
+  }
+  renderMediaGrid();
+}
+
+function stageMoreIncluded(id) {
+  return stageMoreOrder.includes(id);
+}
+
+function stageMoreIndexOf(id) {
+  return stageMoreOrder.indexOf(id);
+}
+
+function addToStageMore(id) {
+  if (!stageMoreOrder.includes(id)) {
+    stageMoreOrder.push(id);
+    saveStageMoreState();
+  }
+}
+
+function removeFromStageMore(id) {
+  const idx = stageMoreOrder.indexOf(id);
+  if (idx !== -1) {
+    stageMoreOrder.splice(idx, 1);
+    if (stageMoreCursor > idx) stageMoreCursor -= 1;
+    stageMoreCursor = Math.max(0, Math.min(stageMoreCursor, stageMoreOrder.length));
+    saveStageMoreState();
+  }
+}
+
+function nextStageMoreId() {
+  if (!stageMoreEnabled || !stageMoreOrder.length) return null;
+  let attempts = 0;
+  while (attempts < stageMoreOrder.length) {
+    const id = stageMoreOrder[stageMoreCursor % stageMoreOrder.length];
+    stageMoreCursor = (stageMoreCursor + 1) % stageMoreOrder.length;
+    attempts++;
+    const item = media.find(m => m.id === id);
+    if (!item) continue;
+    if (id === previewId || id === programId || id === nextUpId) continue;
+    saveStageMoreState();
+    return id;
+  }
+  return null;
+}
+
+function backfillNextUpFromStageMore() {
+  if (!stageMoreEnabled) return false;
+  if (nextUpId) return false;
+  const id = nextStageMoreId();
+  if (!id) return false;
+  const item = media.find(m => m.id === id);
+  if (!item) return false;
+  nextUpId = id;
+  renderNextUp(item);
+  renderMediaGrid();
+  console.log('CONTROL: Stage more backfilled Next Up with', item.name);
+  return true;
+}
+
+function updateViewToggleUI() {
+  if (!btnViewToggle) return;
+  const label = isListView ? 'Grid View' : 'List View';
+  btnViewToggle.textContent = label;
+  btnViewToggle.title = `Switch to ${label}`;
+}
+
+function applyViewMode() {
+  if (grid) {
+    grid.classList.toggle('list-view', isListView);
+  }
+  updateViewToggleUI();
+}
+
+function initViewMode() {
+  try {
+    const saved = localStorage.getItem('viewMode');
+    isListView = saved === 'list';
+  } catch {}
+  applyViewMode();
+}
 
 function fileUrl(p) {
   try {
@@ -321,6 +453,20 @@ function buildThumb(item, { interactive = true } = {}) {
   img.src = getThumbSrcForItem(item);
   container.appendChild(img);
 
+  // Stage more overlay
+  const overlay = document.createElement('div');
+  overlay.className = 'stage-overlay';
+  const stageChk = document.createElement('input');
+  stageChk.type = 'checkbox';
+  stageChk.checked = stageMoreIncluded(item.id);
+  const indexPill = document.createElement('span');
+  indexPill.className = 'stage-index';
+  const pos = stageMoreIndexOf(item.id);
+  indexPill.textContent = pos === -1 ? '-' : String(pos + 1);
+  overlay.appendChild(stageChk);
+  overlay.appendChild(indexPill);
+  container.appendChild(overlay);
+
   const meta = document.createElement('div');
   meta.className = 'meta';
   const name = document.createElement('div');
@@ -348,6 +494,16 @@ function buildThumb(item, { interactive = true } = {}) {
   }
 
   if (interactive) {
+    // Handle Stage more checkbox
+    stageChk.addEventListener('change', () => {
+      if (stageChk.checked) {
+        addToStageMore(item.id);
+      } else {
+        removeFromStageMore(item.id);
+      }
+      renderMediaGrid();
+    });
+
     container.addEventListener('click', (event) => {
       const multi = event.ctrlKey || event.metaKey;
       let shouldSelect = true;
@@ -683,7 +839,10 @@ function pushAtomicFromPreviewAndBackfill() {
 
 if (btnPush) {
   btnPush.onclick = () => {
-    pushAtomicFromPreviewAndBackfill();
+    const pushed = pushAtomicFromPreviewAndBackfill();
+    if (pushed) {
+      backfillNextUpFromStageMore();
+    }
   };
 }
 
@@ -711,38 +870,12 @@ if (btnSetImage) {
   };
 }
 
-if (btnPlayNextUp) {
-  btnPlayNextUp.onclick = () => {
-    if (!nextUpId) {
-      console.log('CONTROL: No Next Up item to play');
-      return;
-    }
-
-    // Find the item currently staged in Next Up
-    const item = media.find((m) => m.id === nextUpId);
-    if (!item) {
-      console.warn('CONTROL: Next Up item not found in media list');
-      nextUpId = null;
-      renderNextUp(null);
-      return;
-    }
-
-    // Move Next Up → Preview
-    previewId = nextUpId;
-    renderPreview(item);
-
-    // Clear Next Up
-    nextUpId = null;
-    renderNextUp(null);
-
-    console.log('CONTROL: Moved Next Up to Preview via Play Next Up button');
-  };
-}
 
 btnClearNext?.addEventListener('click', () => {
   nextUpId = null;
   renderNextUp(null);
   renderMediaGrid();
+  backfillNextUpFromStageMore();
 });
 
 btnClearPreview?.addEventListener('click', clearPreview);
@@ -764,6 +897,7 @@ btnBackground.onclick = async () => {
     const imgPath = await window.presenterAPI.pickImage();
     if (!imgPath) return; // user cancelled
     window.presenterAPI.setBackground(imgPath);
+    updateBackgroundButtonUI(imgPath);
   } catch (e) {
     console.error('Background picker failed', e);
   }
@@ -782,13 +916,18 @@ btnPlay?.addEventListener('click', () => {
 
 if (btnStop) {
   btnStop.onclick = () => {
-    window.presenterAPI.stop?.();
-    window.presenterAPI.setBackground?.();
+    window.presenterAPI.pause?.();
+    window.presenterAPI.unblack?.();
+    isProgramBlanked = false;
+    if (btnBlankToggle) {
+      btnBlankToggle.textContent = 'Blank';
+    }
+    window.presenterAPI.showBackground?.();
     updatePlayToggleUI(false);
     programId = null;
     index = -1;
     renderMediaGrid();
-    console.log('CONTROL: Stopped playback and reverted to background');
+    console.log('CONTROL: Background button invoked — paused and faded to background/black');
   };
 }
 
@@ -823,6 +962,18 @@ if (btnAdd) {
     fileInput.click();
   };
 }
+
+btnStageMoreToggle?.addEventListener('click', () => {
+  stageMoreEnabled = !stageMoreEnabled;
+  saveStageMoreState();
+  applyStageMoreUI();
+});
+
+btnViewToggle?.addEventListener('click', () => {
+  isListView = !isListView;
+  try { localStorage.setItem('viewMode', isListView ? 'list' : 'grid'); } catch {}
+  applyViewMode();
+});
 
 grid?.addEventListener('click', () => {
   // absorb stray clicks so the grid keeps focus when empty
@@ -1012,13 +1163,20 @@ window.presenterAPI?.onProgramEvent?.('display:ended', () => {
     }
   } else {
     console.log('CONTROL: Auto-play disabled, reverting to background');
-    window.presenterAPI.setBackground?.();
     updatePlayToggleUI(false);
     programId = null;
     index = -1;
     renderMediaGrid();
   }
 });
+
+// Keep the control UI in sync with the current background image
+window.presenterAPI?.onProgramEvent?.('display:set-background', (absPath) => {
+  updateBackgroundButtonUI(absPath || null);
+});
+
+// Request current background on load so the button shows the preview
+try { window.presenterAPI?.send?.('display:get-background'); } catch {}
 
 renderNextUp(null);
 renderMediaGrid();

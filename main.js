@@ -277,6 +277,9 @@ ipcMain.on('display:black', () => {
 ipcMain.on('display:unblack', () => {
   if (displayWin && !displayWin.isDestroyed()) displayWin.webContents.send('display:unblack');
 });
+ipcMain.on('display:show-background', () => {
+  if (displayWin && !displayWin.isDestroyed()) displayWin.webContents.send('display:show-background');
+});
 ipcMain.on('display:pause', () => {
   if (displayWin && !displayWin.isDestroyed()) displayWin.webContents.send('display:pause');
 });
