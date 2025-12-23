@@ -328,11 +328,10 @@ button:active {
   height: 64px;
   border-top: 1px solid #4e6766 ;
   background: #837c73 ;
-  display: grid;
-  grid-auto-flow: column;
+  display: flex;
   align-items: center;
-  justify-content: flex-start;
-  column-gap: 12px;
+  justify-content: space-evenly;
+  gap: 12px;
   padding: 0 12px;
 }
 

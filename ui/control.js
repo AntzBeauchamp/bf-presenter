@@ -59,7 +59,7 @@ function moveInArray(arr, fromIdx, toIdx) {
 let isProgramBlanked = false;
 let isProgramPlaying = false;
 let isRepeatEnabled = false;
-let autoPlayEnabled = true;
+let autoPlayEnabled = false;
 let displayCurrentTime = 0;
 let displayDuration = 0;
 let isDisplayScrubbing = false;
@@ -150,11 +150,9 @@ function saveStageMoreState() {
 
 function initStageMoreState() {
   try {
-    stageMoreEnabled = localStorage.getItem('stageMoreEnabled') === '1';
-    const savedOrder = JSON.parse(localStorage.getItem('stageMoreOrder') || '[]');
-    stageMoreOrder = Array.isArray(savedOrder) ? savedOrder : [];
-    const cur = parseInt(localStorage.getItem('stageMoreCursor') || '0', 10);
-    stageMoreCursor = Number.isFinite(cur) && cur >= 0 ? cur : 0;
+    stageMoreEnabled = false; // Always start with Stage More OFF
+    stageMoreOrder = []; // Always reset order on app start
+    stageMoreCursor = 0; // Always reset counter on app start
   } catch {}
   applyStageMoreUI();
 }
@@ -410,10 +408,6 @@ function addPathsToMedia(paths = []) {
 
   media = media.concat(items);
   renderMediaGrid();
-
-  if (!nextUpId && media.length) {
-    stageNext(media[0].id);
-  }
 }
 
 function getThumbSrcForItem(item) {
@@ -425,7 +419,10 @@ function getThumbSrcForItem(item) {
     return fileUrl(item.path);
   }
   if (item.type === 'video') {
-    return 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" rx="6" fill="#191919"/><polygon points="20,16 34,24 20,32" fill="#6ec1ff"/></svg>');
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" rx="6" fill="#191919"/><rect x="8" y="16" width="24" height="16" rx="2" fill="#6ec1ff"/><path d="M32 20l8-4v16l-8-4z" fill="#9be7ff"/><circle cx="14" cy="21" r="1.5" fill="#191919"/><circle cx="19" cy="21" r="1.5" fill="#191919"/></svg>');
+  }
+  if (item.type === 'audio') {
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" rx="6" fill="#191919"/><path d="M30 10v2c3.3 0 6 2.7 6 6s-2.7 6-6 6v2c4.4 0 8-3.6 8-8s-3.6-8-8-8z" fill="#9be7ff"/><path d="M30 16v2c1.1 0 2 0.9 2 2s-0.9 2-2 2v2c2.2 0 4-1.8 4-4s-1.8-4-4-4z" fill="#9be7ff"/><path d="M26 14v20l-8-6h-6v-8h6z" fill="#6ec1ff"/></svg>');
   }
   return 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><rect width="48" height="48" rx="6" fill="#191919"/><circle cx="16" cy="16" r="6" fill="#9be7ff"/><path d="M8 38l10-12 8 9 6-8 8 11H8z" fill="#6ec1ff"/></svg>');
 }
@@ -965,6 +962,8 @@ if (btnAdd) {
 
 btnStageMoreToggle?.addEventListener('click', () => {
   stageMoreEnabled = !stageMoreEnabled;
+  stageMoreOrder = []; // Reset order when toggling stage mode
+  stageMoreCursor = 0; // Reset counter when toggling stage mode
   saveStageMoreState();
   applyStageMoreUI();
 });
@@ -1150,6 +1149,10 @@ window.presenterAPI?.onProgramEvent?.('display:ended', () => {
   if (autoPlayEnabled) {
     console.log('CONTROL: Auto-play enabled, advancing media');
     const pushed = pushAtomicFromPreviewAndBackfill();
+    
+    if (pushed) {
+      backfillNextUpFromStageMore();
+    }
 
     if (!pushed) {
       updatePlayToggleUI(false);
