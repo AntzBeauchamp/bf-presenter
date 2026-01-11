@@ -14,6 +14,10 @@ let currentType = null;
 let swapTimer = null;
 let fallbackTimer = null;
 let playbackToken = 0;
+let seekResetTimer = null;
+let lastSeekedElement = null;
+let clearSeekingHandler = null;
+let isSeeking = false;
 
 let backgroundImagePath = null;
 let isBlanked = false;
@@ -81,6 +85,27 @@ window.presenterAPI.send('display:get-background');
   });
 })();
 
+function sendPlaybackProgressFrom(el, from = 'unknown') {
+  if (!el) return;
+  const active = getActiveProgramElement();
+
+  // FIX: only report progress for the active program element so stale 0,0 events
+  // from cleared layers don't override scrubbing state on the control side.
+  if (active && el !== active) return;
+
+  const currentTime = Number.isFinite(el.currentTime) ? el.currentTime : 0;
+  const duration = Number.isFinite(el.duration) ? el.duration : 0;
+  console.log('[DISPLAY] playback-progress', { from, currentTime, duration });
+  window.presenterAPI.send('display:playback-progress', { currentTime, duration });
+}
+
+[videoA, videoB, audioEl].forEach((el) => {
+  if (!el) return;
+  el.addEventListener('timeupdate', () => sendPlaybackProgressFrom(el, 'timeupdate'));
+  el.addEventListener('loadedmetadata', () => sendPlaybackProgressFrom(el, 'loadedmetadata'));
+  el.addEventListener('durationchange', () => sendPlaybackProgressFrom(el, 'durationchange'));
+});
+
 function getLayerElements(key) {
   return key === 'A'
     ? { layer: layerA, img: imgA, video: videoA }
@@ -94,6 +119,10 @@ function getActiveLayer() {
 function getInactiveLayer() {
   const inactiveKey = activeLayerKey === 'A' ? 'B' : 'A';
   return getLayerElements(inactiveKey);
+}
+
+function getActiveProgramElement() {
+  return currentProgramEl || null;
 }
 
 function resetVisualClass(el) {
@@ -229,6 +258,7 @@ function hideAll() {
   stopAudio();
   currentItem = null;
   currentType = null;
+  currentProgramEl = null;
 }
 
 function clearError() {
@@ -300,6 +330,8 @@ function showItem(item) {
   resetSwapTimer();
 
   if (!item) {
+    console.log('[DISPLAY] resetting media or progress here', { reason: 'no-item' });
+    window.presenterAPI.send('display:playback-progress', { currentTime: 0, duration: 0 });
     hideAll();
     if (!isBlanked && backgroundImagePath) {
       showBackgroundFallback();
@@ -322,9 +354,11 @@ function showItem(item) {
 
   if (item.type === 'image') {
     willShowVisual = prepareImage(incoming, item);
+    currentProgramEl = null;
     blackout?.classList.add('hidden');
   } else if (item.type === 'video') {
     willShowVisual = prepareVideo(incoming, item);
+    currentProgramEl = willShowVisual ? incoming.video : null;
     blackout?.classList.add('hidden');
   } else if (item.type === 'audio') {
     const audioSrc = item.url ? item.url : (item.path ? fileUrl(item.path) : null);
@@ -341,6 +375,7 @@ function showItem(item) {
       audioEl.addEventListener('loadedmetadata', ensureAudible, { once: true });
       try { audioEl.load(); } catch (err) { console.warn('Audio load failed', err); }
     }
+    currentProgramEl = audioSrc ? audioEl : null;
 
     if (item.displayImage && incoming?.img) {
       // Show the item-specific image
@@ -354,6 +389,7 @@ function showItem(item) {
       willShowVisual = false;
     }
   } else {
+    currentProgramEl = null;
     notifyError('Unsupported media type.', new Error(item.type));
     return;
   }
@@ -394,6 +430,7 @@ function showItem(item) {
 
 function playCurrent() {
   const { video } = getActiveLayer();
+  console.log('[DISPLAY] playCurrent called', { currentType });
   if (currentType === 'video' && video.classList.contains('show')) {
     video.play().catch((err) => {
       notifyError('Unable to play video.', err);
@@ -415,10 +452,15 @@ function pauseCurrent() {
 }
 
 function onEnded(ev) {
+  if (isSeeking) {
+    return;
+  }
+
   if (repeatEnabled && (currentType === 'video' || currentType === 'audio')) {
     try {
       const el = ev?.target || (currentType === 'video' ? getActiveLayer().video : audioEl);
       if (el) {
+        console.log('[DISPLAY] resetting media or progress here', { reason: 'repeat-ended' });
         el.currentTime = 0;
         el.play().catch(() => {});
       }
@@ -426,7 +468,7 @@ function onEnded(ev) {
     return;
   }
 
-  console.log('DISPLAY: media ended → notifying Control');
+  console.log('DISPLAY: media ended');
   window.presenterAPI.send('display:ended');
 
   const tokenAtEnd = playbackToken;
@@ -488,4 +530,63 @@ window.presenterAPI.onProgramEvent('display:set-background', (absPath) => {
   if (!hasActiveVisual() && !isBlanked) {
     showBackgroundFallback();
   }
+});
+
+window.presenterAPI.onProgramEvent('display:seek', (payload) => {
+  if (!payload || typeof payload.time !== 'number' || !Number.isFinite(payload.time)) {
+    return;
+  }
+
+  const target = Math.max(0, payload.time);
+
+  // display:seek is handled only in this block on the Display window.
+  console.log('[DISPLAY] display:seek received time', target);
+
+  let el = null;
+
+  const dur = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : null;
+  const clamped = dur ? Math.min(target, dur) : target;
+
+  const clearSeeking = () => {
+    isSeeking = false;
+    if (seekResetTimer) {
+      clearTimeout(seekResetTimer);
+      seekResetTimer = null;
+    }
+  };
+
+  if (clearSeekingHandler && lastSeekedElement) {
+    lastSeekedElement.removeEventListener('seeked', clearSeekingHandler);
+  }
+
+  clearSeekingHandler = clearSeeking;
+  lastSeekedElement = el;
+  el.addEventListener('seeked', clearSeekingHandler, { once: true });
+
+  isSeeking = true;
+
+  const dur = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : null;
+  const clamped = dur ? Math.min(target, dur) : target;
+
+  const clearSeeking = () => {
+    isSeeking = false;
+    if (seekResetTimer) {
+      clearTimeout(seekResetTimer);
+      seekResetTimer = null;
+    }
+  };
+
+  if (clearSeekingHandler && lastSeekedElement) {
+    lastSeekedElement.removeEventListener('seeked', clearSeekingHandler);
+  }
+
+  clearSeekingHandler = clearSeeking;
+  lastSeekedElement = el;
+  el.addEventListener('seeked', clearSeekingHandler, { once: true });
+
+  // FIX: seeking should not trigger restart logic. Track the in-flight seek and
+  // clear the flag once the media reports it has settled.
+  seekResetTimer = window.setTimeout(clearSeeking, 1000);
+
+  el.currentTime = clamped;
 });
